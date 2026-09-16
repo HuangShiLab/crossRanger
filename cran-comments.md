@@ -9,54 +9,25 @@ transfers the models across datasets, and identifies biomarkers that generalize 
 
 ## Test environments
 
+* win-builder: R-devel (2026-09-15 r90540 ucrt), x86_64-w64-mingw32
 * local: macOS 26.5.1 (aarch64-apple-darwin20), R 4.3.3
-
-Before submitting, please add the results of at least:
-
-* win-builder (R-release and R-devel)
-* R-hub: Windows Server, Ubuntu Linux and Fedora
 
 ## R CMD check results
 
-`R CMD check --as-cran` gives:
+On win-builder (R-devel) the check gives one note:
 
 ```
-0 errors | 0 warnings | 2 notes
+Status: 1 NOTE
+
+* checking CRAN incoming feasibility ... NOTE
+  Maintainer: 'Shi Huang <shihuang047@gmail.com>'
+
+  New submission
 ```
 
-### Note 1: checking CRAN incoming feasibility
+This note is expected for a first submission; there are no errors or warnings.
 
-```
-Maintainer: 'Shi Huang <shihuang047@gmail.com>'
-
-New submission
-```
-
-This is expected for a first submission.
-
-The same note also reported one URL as possibly invalid:
-
-```
-URL: https://www.gnu.org/licenses/gpl-3.0.en.html
-  From: README.md
-  Status: Error
-  Message: libcurl error code 35:
-    LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to www.gnu.org:443
-```
-
-This is a TLS failure of the machine the check was run on rather than a broken link: `curl`
-fails with the same error for this address on that machine, while other https addresses (for
-example <https://cran.r-project.org>) return HTTP 200 from the same session. The address is the
-canonical page of the GPL-3 license and resolves normally elsewhere.
-
-### Note 2: checking for future file timestamps
-
-```
-unable to verify current time
-```
-
-The machine running the check could not reach the time server used by `R CMD check`. This is a
-property of the check environment and unrelated to the package.
+Locally (macOS, R 4.3.3) `R CMD check` gives `Status: OK`.
 
 ## Notes on the examples
 
@@ -65,6 +36,13 @@ property of the check environment and unrelated to the package.
 * A few examples that fit many random forest models are wrapped in `\donttest{}` to keep the
   check time short. They are run and pass with `R CMD check --run-donttest`.
 * No example, test or vignette writes outside `tempdir()`.
+
+## Parallel computation
+
+The package parallelizes over datasets with foreach and doParallel, which forks on Unix and uses
+a PSOCK cluster on Windows. A cluster started by the package is stopped again by the function that
+started it, so that no connection is left open, and a parallel backend registered by the user is
+used as it is and never stopped. While the package is checked the functions run sequentially.
 
 ## Downstream dependencies
 
