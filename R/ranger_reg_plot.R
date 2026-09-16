@@ -186,7 +186,8 @@ plot_perf_VS_rand<-function(x, y, predicted_y, prefix="train", target_field="val
     .perf_metric(rand_y, if(is.factor(y)) rand_rf else rand_rf$predicted, metric, positive_class, n_features)
   }
   if(n_cores > 1){
-    .register_cores(n_cores)
+    n_workers <- .register_cores(n_cores)
+    if(isTRUE(attr(n_workers, "own"))) on.exit(.stop_implicit_cluster(), add=TRUE)
     rand_perf_values <- unlist(foreach(i=seq_along(rand_y_list)) %dopar% shuffle_y_perf(rand_y_list[[i]]))
   }else{
     rand_perf_values <- vapply(rand_y_list, shuffle_y_perf, numeric(1))

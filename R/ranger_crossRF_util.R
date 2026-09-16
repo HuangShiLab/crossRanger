@@ -13,8 +13,9 @@ utils::globalVariables(c("i"))
 # PSOCK cluster on Windows. By default all but four cores are used (at least one), and at most
 # two cores when the package is checked (_R_CHECK_LIMIT_CORES_).
 .register_cores <- function(n_cores=NULL){
+  # a backend registered by the user is used as it is and must not be stopped by us
   if(is.null(n_cores) && foreach::getDoParRegistered() && foreach::getDoParWorkers() > 1)
-    return(invisible(foreach::getDoParWorkers()))
+    return(invisible(structure(foreach::getDoParWorkers(), own=FALSE)))
   if(is.null(n_cores)){
     n_detected <- parallel::detectCores()
     n_cores <- if(is.na(n_detected)) 1L else n_detected - 4L
@@ -22,7 +23,20 @@ utils::globalVariables(c("i"))
   }
   n_cores <- max(1L, as.integer(n_cores))
   doParallel::registerDoParallel(cores=n_cores)
-  invisible(n_cores)
+  invisible(structure(n_cores, own=TRUE))
+}
+
+# On Windows, registerDoParallel(cores=) starts an implicit PSOCK cluster whose socket connections
+# stay open; they have to be closed again, otherwise they leak out of the function (R CMD check
+# reports "connections left open"). On Unix the backend forks and opens no connection, so nothing
+# is done there and the behaviour is unchanged. registerDoSEQ() prevents the stopped cluster from
+# being picked up as an already registered backend by the next call.
+.stop_implicit_cluster <- function(){
+  if(.Platform$OS.type == "windows"){
+    try(doParallel::stopImplicitCluster(), silent=TRUE)
+    foreach::registerDoSEQ()
+  }
+  invisible(NULL)
 }
 
 # ranger uses all cores by default. Within parallel workers, the cores are shared among the workers
@@ -311,6 +325,7 @@ rf_clf.by_datasets<-function(df, metadata, s_category=NULL, c_category, positive
   # 1. sample size of all datasets
   sample_size<-as.numeric(table(s))
   n_workers<-.register_cores(n_cores)
+  if(isTRUE(attr(n_workers, "own"))) on.exit(.stop_implicit_cluster(), add=TRUE)
   rf_dots<-.worker_dots(n_workers, ...)
   oper<-foreach(i=1:L) %dopar% {
     x<-x_list[[i]]
@@ -398,6 +413,7 @@ rf_reg.by_datasets<-function(df, metadata, s_category=NULL, c_category, nfolds=5
   # sample size of all datasets
   sample_size<-as.numeric(table(s))
   n_workers<-.register_cores(n_cores)
+  if(isTRUE(attr(n_workers, "own"))) on.exit(.stop_implicit_cluster(), add=TRUE)
   rf_dots<-.worker_dots(n_workers, ...)
   oper<-foreach(i=1:L) %dopar% {
     do.call(.fit_rf, c(list(x_list[[i]], y_list[[i]], nfolds=nfolds, cv_type=cv_type, groups=g_list[[i]],
@@ -650,6 +666,7 @@ rf_clf.lodo <- function(df, metadata, s_category=NULL, c_category, positive_clas
   if(length(datasets) < 2) stop("At least two datasets are required for leave-one-dataset-out validation.")
   positive_class <- ifelse(is.na(positive_class), levels(y)[1], positive_class)
   n_workers<-.register_cores(n_cores)
+  if(isTRUE(attr(n_workers, "own"))) on.exit(.stop_implicit_cluster(), add=TRUE)
   rf_dots<-.worker_dots(n_workers, ...)
   oper <- foreach(i=seq_along(datasets)) %dopar% {
     test_idx <- which(s==datasets[i])
@@ -715,6 +732,7 @@ rf_reg.lodo <- function(df, metadata, s_category=NULL, c_category, ntree=500, ve
   if(length(datasets) < 2) stop("At least two datasets are required for leave-one-dataset-out validation.")
   reg_metrics <- c("MSE", "RMSE", "nRMSE", "MAE", "MAPE", "MASE", "Spearman_rho", "R_squared")
   n_workers<-.register_cores(n_cores)
+  if(isTRUE(attr(n_workers, "own"))) on.exit(.stop_implicit_cluster(), add=TRUE)
   rf_dots<-.worker_dots(n_workers, ...)
   oper <- foreach(i=seq_along(datasets)) %dopar% {
     test_idx <- which(s==datasets[i])
@@ -805,6 +823,7 @@ rf_clf.comps<-function(df, f, comp_group, verbose=FALSE, clr_transform=TRUE,
   all_other_groups<-levels(f)[which(levels(f)!=comp_group)]
   L<-length(all_other_groups)
   n_workers<-.register_cores(n_cores)
+  if(isTRUE(attr(n_workers, "own"))) on.exit(.stop_implicit_cluster(), add=TRUE)
   rf_dots<-.worker_dots(n_workers, ...)
   oper<-foreach(i=1:L) %dopar% {
     idx<-which(f==comp_group | f==all_other_groups[i])

@@ -62,6 +62,9 @@
 * `R/data_trimming_util.R` no longer installs and attaches packages when the package is loaded, and no longer needs dplyr;
   `normalize_NA_in_metadata()`, `discard_uninfo_columns_in_metadata()`, `filter_features_allzero()` and `check_metadata(more_missing_values=)` are fixed.
 * The number of cores is at least one on machines with four cores or fewer.
+* On Windows, the implicit PSOCK cluster of the parallel backend left its socket connections open
+  after the functions returned (`R CMD check` reported "connections left open"). The cluster is now
+  stopped by the function that started it, while a backend registered by the user is left untouched.
 * `plot_clf_pROC()` failed whenever `outdir` was set, drew on the active device even with `outdir = NULL`,
   and let pROC choose the curve direction automatically (so the AUC of a poor model was flipped above 0.5).
   The positive class is now the case level with `direction = "<"`.

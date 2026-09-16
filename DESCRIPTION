@@ -2,8 +2,8 @@ Package: crossRanger
 Type: Package
 Title: Cross-Application of Ranger Models Using Microbiome Data
 Version: 0.2.0
-Author: Shi Huang
-Maintainer: Shi Huang <shihuang047@gmail.com>
+Authors@R: person(given = "Shi", family = "Huang", role = c("aut", "cre"),
+                  email = "shihuang047@gmail.com")
 Description: Builds multiple random forest models with 'ranger' according to metadata for a given
     dataset or for multiple datasets, using out-of-bag estimation, stratified k-fold, group k-fold or
     leave-one-group-out cross-validation; applies the models to each other and performs
