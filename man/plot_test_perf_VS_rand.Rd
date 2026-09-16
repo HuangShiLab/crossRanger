@@ -14,7 +14,8 @@ plot_test_perf_VS_rand(
   permutation = 1000,
   n_features = NA,
   outdir = NULL,
-  positive_class = NA
+  positive_class = NA,
+  seed = 123
 )
 }
 \arguments{
@@ -38,6 +39,10 @@ AUROC, AUPRC, Accuracy, Kappa, F1 or Balanced_Accuracy for classification.}
 \item{outdir}{The output directory.}
 
 \item{positive_class}{A class of newy for classification.}
+
+\item{seed}{The random seed used for reproducible models. The default (123) reproduces the
+results of earlier versions; NULL uses the current state of the random number generator.
+The state of the user's R session is restored when the function returns.}
 }
 \value{
 A list including the empirical p value, the observed and permuted performance, and the histogram.

@@ -10,6 +10,8 @@ Description: Builds multiple random forest models with 'ranger' according to met
     leave-one-dataset-out validation; identifies biomarkers by recursive feature elimination
     and univariate statistical tests; and visualizes the results and generates R Markdown reports.
 License: GPL-3
+URL: https://github.com/HuangShiLab/crossRanger
+BugReports: https://github.com/HuangShiLab/crossRanger/issues
 Encoding: UTF-8
 LazyData: true
 Depends: R (>= 3.5.0)

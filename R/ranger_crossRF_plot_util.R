@@ -544,13 +544,9 @@ id_non_spcf_markers <- function(feature_res, positive_class="disease",
   fac_spcf<-data.frame(dataset=rownames(fac_spcf), fac_spcf)
   if(!is.null(outdir)){
     # output the fac_spcf table
-    sink(paste(outdir,"Markers_fraction_overlap_with_non_specific_",p.adj.method,".txt",sep=""));
-    cat("\t"); write.table(fac_spcf,sep='\t',quote=F)
-    sink(NULL)
+    .write_tsv(fac_spcf, paste(outdir,"Markers_fraction_overlap_with_non_specific_",p.adj.method,".txt",sep=""), row.names=TRUE)
     # output the count_spcf table
-    sink(paste(outdir,"Markers_number_overlap_with_non_specific_",p.adj.method,".txt",sep=""));
-    cat("\t"); write.table(count_spcf,sep='\t',quote=F)
-    sink(NULL)
+    .write_tsv(count_spcf, paste(outdir,"Markers_number_overlap_with_non_specific_",p.adj.method,".txt",sep=""), row.names=TRUE)
   }
   # ggplot the fraction overlap of non-specific markers in all datasets
   fac_spcf_m<-reshape2::melt(fac_spcf, id.vars="dataset")

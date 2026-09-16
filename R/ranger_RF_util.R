@@ -19,6 +19,39 @@
   value
 }
 
+# Write a table preceded by a tab (so that spreadsheet programs align the header row).
+# Unlike sink(), this never redirects the output of the user's R session, not even when writing fails.
+.write_tsv <- function(x, path, row.names=FALSE){
+  con <- file(path, open="wt")
+  on.exit(close(con), add=TRUE)
+  cat("\t", file=con)
+  utils::write.table(x, file=con, quote=FALSE, sep="\t", row.names=row.names)
+  invisible(path)
+}
+
+# Set the random seed inside a function without changing the state of the user's R session:
+# the caller restores the previous state with .restore_seed() through on.exit().
+.save_seed_state <- function(){
+  list(old = if(exists(".Random.seed", envir=globalenv())) get(".Random.seed", envir=globalenv()) else NA)
+}
+
+.set_seed_locally <- function(seed){
+  if(is.null(seed)) return(NULL)
+  state <- .save_seed_state()
+  set.seed(seed)
+  state
+}
+
+.restore_seed <- function(state){
+  if(is.null(state)) return(invisible(NULL))
+  if(identical(state$old, NA)){
+    if(exists(".Random.seed", envir=globalenv())) rm(".Random.seed", envir=globalenv())
+  }else{
+    assign(".Random.seed", state$old, envir=globalenv())
+  }
+  invisible(NULL)
+}
+
 # Altmann's permutation p values of importance scores. ranger's formula interface requires syntactic
 # column names, so the features are renamed for the permuted models; the scores are matched by position.
 .altmann_pvalues <- function(model, data){
@@ -35,6 +68,9 @@
 #' @param sparse A boolean value indicates if the input matrix transformed into sparse matrix for rf modeling.
 #' @param verbose A boolean value indicates if showing computation status and estimated runtime.
 #' @param imp_pvalues If compute both importance score and pvalue for each feature.
+#' @param seed The random seed used for reproducible models. The default (123) reproduces the
+#' results of earlier versions; NULL uses the current state of the random number generator.
+#' The state of the user's R session is restored when the function returns.
 #' @param ... Other parameters applicable to \code{ranger} (e.g., \code{mtry}, \code{num.threads}).
 #' @return Object of class \code{rf.out.of.bag} with elements including the ranger object and critical metrics for model evaluation.
 #'
@@ -71,8 +107,9 @@
 #' }
 #' @author Shi Huang
 #' @export
-"rf.out.of.bag" <-function(x, y, ntree=500, verbose=FALSE, sparse = FALSE, imp_pvalues=FALSE, ...){
-  set.seed(123)
+"rf.out.of.bag" <-function(x, y, ntree=500, verbose=FALSE, sparse = FALSE, imp_pvalues=FALSE, seed=123, ...){
+  seed_state <- .set_seed_locally(seed)
+  on.exit(.restore_seed(seed_state), add=TRUE)
   x <- .as_feature_df(x)
   if(length(y)!=nrow(x)) stop("The target varible doesn't match the shape of train data matrix, please check!")
   if("y" %in% colnames(x)) stop("The feature table should not contain a column named 'y'.")

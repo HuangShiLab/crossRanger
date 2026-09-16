@@ -29,6 +29,10 @@
   and starts a PSOCK cluster on Windows.
 * A parallel backend registered by the user (e.g., doFuture, or a cluster of their own) is now kept
   instead of being silently replaced, so the way of parallelization can be chosen by the user.
+* `rf.out.of.bag()`, `plot_perf_VS_rand()` and `plot_test_perf_VS_rand()` gain a `seed` argument
+  (default 123, which reproduces the results of earlier versions; NULL uses the current random number
+  stream). These functions no longer leave the random number generator of the user's R session reset:
+  its state is restored when they return.
 
 ## Bug fixes
 
@@ -52,6 +56,9 @@
   paired tests now use the two-sample interface.
 * Plotting functions no longer write files when `outdir = NULL`; `boxplot_rel_predicted_train_vs_test()` saved the wrong plot
   and `plot_rel_predicted()` failed.
+* The functions that write result tables used `sink()` without protecting it with `on.exit()`, so that an error
+  while writing left the output of the user's R session redirected. The tables are now written through a file
+  connection, with identical content.
 * `R/data_trimming_util.R` no longer installs and attaches packages when the package is loaded, and no longer needs dplyr;
   `normalize_NA_in_metadata()`, `discard_uninfo_columns_in_metadata()`, `filter_features_allzero()` and `check_metadata(more_missing_values=)` are fixed.
 * The number of cores is at least one on machines with four cores or fewer.

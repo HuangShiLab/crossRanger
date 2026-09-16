@@ -11,6 +11,7 @@ rf.out.of.bag(
   verbose = FALSE,
   sparse = FALSE,
   imp_pvalues = FALSE,
+  seed = 123,
   ...
 )
 }
@@ -26,6 +27,10 @@ rf.out.of.bag(
 \item{sparse}{A boolean value indicates if the input matrix transformed into sparse matrix for rf modeling.}
 
 \item{imp_pvalues}{If compute both importance score and pvalue for each feature.}
+
+\item{seed}{The random seed used for reproducible models. The default (123) reproduces the
+results of earlier versions; NULL uses the current state of the random number generator.
+The state of the user's R session is restored when the function returns.}
 
 \item{...}{Other parameters applicable to \code{ranger} (e.g., \code{mtry}, \code{num.threads}).}
 }

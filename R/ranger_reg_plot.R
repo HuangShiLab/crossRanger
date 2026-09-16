@@ -78,8 +78,7 @@ plot_obs_VS_pred <- function(y, predicted_y, SampleIDs=NULL, prefix="train", tar
     theme_bw()
   if(!is.null(outdir)){
     ggsave(filename=paste(outdir, prefix, ".", target_field, ".obs_vs_pred.scatterplot.pdf",sep=""), plot=p, height=4, width=4)
-    sink(paste(outdir, prefix, ".", target_field, ".obs_vs_pred.results.xls",sep=""));cat("\t")
-    write.table(df, quote=FALSE,sep="\t", row.names = FALSE);sink(NULL)
+    .write_tsv(df, paste(outdir, prefix, ".", target_field, ".obs_vs_pred.results.xls",sep=""))
   }
   p
 }
@@ -118,9 +117,7 @@ plot_residuals <- function(y, predicted_y, SampleIDs=NULL, prefix="train", targe
     theme_bw()
   if(!is.null(outdir)){
   ggsave(filename=paste(outdir, prefix, ".", target_field, ".obs_vs_residuals_of_pred.scatterplot.pdf",sep=""), plot=p, height=4, width=4)
-  sink(paste(outdir, prefix, ".", target_field, ".obs_vs_pred.results.xls",sep=""))
-  cat("\t")
-  write.table(df, quote=FALSE,sep="\t", row.names = FALSE);sink(NULL)
+  .write_tsv(df, paste(outdir, prefix, ".", target_field, ".obs_vs_pred.results.xls",sep=""))
   }
   invisible(p)
 }
@@ -144,6 +141,9 @@ plot_residuals <- function(y, predicted_y, SampleIDs=NULL, prefix="train", targe
 #' @param outdir The output directory.
 #' @param positive_class A class of y for classification.
 #' @param n_cores The number of cores for running the permutations in parallel.
+#' @param seed The random seed used for reproducible models. The default (123) reproduces the
+#' results of earlier versions; NULL uses the current state of the random number generator.
+#' The state of the user's R session is restored when the function returns.
 #' @return A list including the empirical p value, the observed and permuted performance, and the histogram.
 #' @examples
 #' set.seed(123)
@@ -164,7 +164,12 @@ plot_residuals <- function(y, predicted_y, SampleIDs=NULL, prefix="train", targe
 #' @author Shi Huang
 #' @export
 plot_perf_VS_rand<-function(x, y, predicted_y, prefix="train", target_field="value", nfolds=5,
-                            metric="MAE", permutation=100, n_features=NA, outdir=NULL, positive_class=NA, n_cores=1){
+                            metric="MAE", permutation=100, n_features=NA, outdir=NULL, positive_class=NA,
+                            n_cores=1, seed=123){
+  # save the state at entry so that it can be restored, but set the seed only just before the
+  # permutations, which keeps the permuted labels identical to those of earlier versions
+  seed_state <- if(is.null(seed)) NULL else .save_seed_state()
+  on.exit(.restore_seed(seed_state), add=TRUE)
   if(is.factor(y)){
     if(!metric %in% .clf_metric_names) stop("metric should be one of: ", paste(.clf_metric_names, collapse=", "))
     if(!is.list(predicted_y) || is.null(predicted_y$probabilities))
@@ -174,7 +179,7 @@ plot_perf_VS_rand<-function(x, y, predicted_y, prefix="train", target_field="val
     observed <- predicted_y
   }
   perf_value<-.perf_metric(y, observed, metric, positive_class, n_features)
-  set.seed(123)
+  if(!is.null(seed)) set.seed(seed)
   rand_y_list <- lapply(seq_len(permutation), function(k) sample(y, replace = FALSE))
   shuffle_y_perf <- function(rand_y){
     rand_rf <- .quietly(rf.cross.validation(x, rand_y, nfolds=nfolds))
@@ -257,8 +262,7 @@ plot_train_vs_test<-function(train_y, predicted_train_y, test_y, predicted_test_
     theme(legend.position="none")
   if(!is.null(outdir)){
   ggsave(filename=paste(outdir, train_prefix,"-",test_prefix,".",test_target_field, ".train_test_ggplot.pdf",sep=""),plot=p, height=3, width=6)
-  sink(paste(outdir, train_prefix,"-",test_prefix,".",test_target_field, ".train_test_results.xls",sep=""));
-  cat("\t");write.table(pred, quote=FALSE,sep="\t", row.names = FALSE);sink(NULL)
+  .write_tsv(pred, paste(outdir, train_prefix,"-",test_prefix,".",test_target_field, ".train_test_results.xls",sep=""))
   }
   invisible(p)
 }
@@ -279,6 +283,9 @@ plot_train_vs_test<-function(train_y, predicted_train_y, test_y, predicted_test_
 #' @param permutation The permutation times for a random guess of performance.
 #' @param outdir The output directory.
 #' @param positive_class A class of newy for classification.
+#' @param seed The random seed used for reproducible models. The default (123) reproduces the
+#' results of earlier versions; NULL uses the current state of the random number generator.
+#' The state of the user's R session is restored when the function returns.
 #' @return A list including the empirical p value, the observed and permuted performance, and the histogram.
 #' @examples
 #' set.seed(123)
@@ -300,7 +307,10 @@ plot_train_vs_test<-function(train_y, predicted_train_y, test_y, predicted_test_
 #' @author Shi Huang
 #' @export
 plot_test_perf_VS_rand<-function(rf_model, newx, newy, prefix="test", target_field="",
-                            metric="MAE", permutation=1000, n_features=NA, outdir=NULL, positive_class=NA){
+                            metric="MAE", permutation=1000, n_features=NA, outdir=NULL, positive_class=NA,
+                            seed=123){
+  seed_state <- if(is.null(seed)) NULL else .save_seed_state()
+  on.exit(.restore_seed(seed_state), add=TRUE)
   if(is.factor(newy) || is.character(newy)){
     if(!metric %in% .clf_metric_names) stop("metric should be one of: ", paste(.clf_metric_names, collapse=", "))
     prediction <- .predict_clf(rf_model, newx)
@@ -311,7 +321,7 @@ plot_test_perf_VS_rand<-function(rf_model, newx, newy, prefix="test", target_fie
   }
   perf_value<-.perf_metric(newy, prediction, metric, positive_class, n_features)
   # the predictions are fixed, and only the labels are permuted
-  set.seed(123)
+  if(!is.null(seed)) set.seed(seed)
   rand_perf_values <- vapply(seq_len(permutation), function(k)
     .perf_metric(sample(newy, replace = FALSE), prediction, metric, positive_class, n_features), numeric(1))
   emp_p_value<-.emp_p_value(perf_value, rand_perf_values, .higher_is_better(metric))
@@ -445,9 +455,7 @@ calc_rel_predicted<-function(train_y, predicted_train_y, train_SampleIDs=NULL,
     }
   }
   if(!is.null(outdir)){
-    sink(paste(outdir, train_prefix,".Relative_",train_target_field,".results.xls",sep=""))
-    cat("\t")
-    write.table(relTrain_data,quote=FALSE,sep="\t", row.names = FALSE);sink(NULL)
+    .write_tsv(relTrain_data, paste(outdir, train_prefix,".Relative_",train_target_field,".results.xls",sep=""))
   }
 
   if(!is.null(test_y) & !is.null(predicted_test_y)){
@@ -468,9 +476,7 @@ calc_rel_predicted<-function(train_y, predicted_train_y, train_SampleIDs=NULL,
     relTrain_data<-data.frame(relTrain_data, DataSet)
 
     if(!is.null(outdir)){
-      sink(paste(outdir, train_prefix,"-",test_prefix,".Relative_",train_target_field,".results.xls",sep=""));
-      cat("\t");
-      write.table(relTrain_data,quote=FALSE,sep="\t", row.names = FALSE);sink(NULL)
+      .write_tsv(relTrain_data, paste(outdir, train_prefix,"-",test_prefix,".Relative_",train_target_field,".results.xls",sep=""))
     }
   }
     return(relTrain_data)
