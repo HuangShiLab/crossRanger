@@ -155,12 +155,12 @@ plot_residuals <- function(y, predicted_y, SampleIDs=NULL, prefix="train", targe
 #' y<- 1:60
 #' rf_model<-rf.out.of.bag(x, y)
 #' p<-plot_perf_VS_rand(x=x, y=y, predicted_y=rf_model$predicted, prefix="train", nfolds=5,
-#' permutation=20, metric="MAE", target_field="age", n_features=5)
+#' permutation=5, metric="MAE", target_field="age", n_features=5)
 #' p$emp_p_value
 #' y_clf <- factor(rep(c("A", "B"), each=30))
 #' clf_model <- rf.cross.validation(x, y_clf, nfolds=5)
 #' plot_perf_VS_rand(x=x, y=y_clf, predicted_y=clf_model, nfolds=5,
-#'                   permutation=20, metric="AUROC")$plot
+#'                   permutation=5, metric="AUROC")$plot
 #' @author Shi Huang
 #' @export
 plot_perf_VS_rand<-function(x, y, predicted_y, prefix="train", target_field="value", nfolds=5,

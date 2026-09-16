@@ -50,7 +50,7 @@ ggplot2::geom_histogram(alpha = 0.5, position = 'identity', bins = 30)
 metadata <- data.frame(study=factor(rep(c("S1", "S2"), each=30)),
                        disease=factor(rep(rep(c("Case", "Control"), each=15), 2)))
 res <- rf_clf.by_datasets(x, metadata, s_category="study", c_category="disease",
-                          positive_class="Case", n_cores=2)
+                          positive_class="Case", n_cores=1)
 plot_clf_ROC(res)
 }
 \author{

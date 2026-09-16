@@ -19,9 +19,17 @@ utils::globalVariables(c("i"))
   if(is.null(n_cores)){
     n_detected <- parallel::detectCores()
     n_cores <- if(is.na(n_detected)) 1L else n_detected - 4L
-    if(nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_"))) n_cores <- min(n_cores, 2L)
+    # while the package is checked, run sequentially: starting a cluster would dominate the run
+    # time of the examples on Windows, and CRAN limits checks to two cores anyway
+    if(nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_"))) n_cores <- 1L
   }
   n_cores <- max(1L, as.integer(n_cores))
+  if(n_cores == 1L){
+    # a single core needs no cluster at all: on Windows even registerDoParallel(cores=1) would
+    # start a PSOCK worker, whose start-up dominates the run time of small analyses
+    foreach::registerDoSEQ()
+    return(invisible(structure(1L, own=FALSE)))
+  }
   doParallel::registerDoParallel(cores=n_cores)
   invisible(structure(n_cores, own=TRUE))
 }

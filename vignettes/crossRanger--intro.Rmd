@@ -36,7 +36,7 @@ preventing information leakage.
 ```{r, results = "hide"}
 res <- rf_clf.by_datasets(abundance, metadata, s_category = "cohort", c_category = "disease_status",
                           positive_class = "Case", nfolds = 5, cv_type = "group",
-                          g_category = "subject_id", ntree = 200, n_cores = 2)
+                          g_category = "subject_id", ntree = 200)
 ```
 
 ```{r}
@@ -55,7 +55,7 @@ datasets but one and tests on the held-out dataset.
 ```{r, results = "hide"}
 cross_rf <- rf_clf.cross_appl(res$rf_model_list, res$x_list, res$y_list, positive_class = "Case")
 lodo <- rf_clf.lodo(abundance, metadata, s_category = "cohort", c_category = "disease_status",
-                    positive_class = "Case", ntree = 200, n_cores = 2)
+                    positive_class = "Case", ntree = 200)
 ```
 
 ```{r}
@@ -106,7 +106,7 @@ The regression functions share the same infrastructure, e.g., predicting age wit
 ```{r, results = "hide"}
 reg <- rf_reg.by_datasets(abundance, metadata, s_category = "cohort", c_category = "age",
                           nfolds = 5, cv_type = "group", g_category = "subject_id",
-                          ntree = 200, n_cores = 2)
+                          ntree = 200)
 ```
 
 ```{r}

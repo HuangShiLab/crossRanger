@@ -57,6 +57,6 @@ df <- data.frame(rbind(t(rmultinom(30, 300, c(.21,.6,.12,.38,.099))),
 metadata <- data.frame(study=factor(rep(c("S1", "S2"), each=60)),
                        disease=factor(rep(rep(c("Case", "Control"), each=30), 2)))
 res <- rf_clf.by_datasets(df, metadata, s_category="study", c_category="disease",
-                          positive_class="Case", n_cores=2)
+                          positive_class="Case", n_cores=1)
 plot_logfc_heatmap(res)$plot
 }

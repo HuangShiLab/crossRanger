@@ -619,7 +619,7 @@ id_non_spcf_markers <- function(feature_res, positive_class="disease",
 #' metadata <- data.frame(study=factor(rep(c("S1", "S2"), each=60)),
 #'                        disease=factor(rep(rep(c("Case", "Control"), each=30), 2)))
 #' res <- rf_clf.by_datasets(df, metadata, s_category="study", c_category="disease",
-#'                           positive_class="Case", n_cores=2)
+#'                           positive_class="Case", n_cores=1)
 #' plot_logfc_heatmap(res)$plot
 #' @export
 plot_logfc_heatmap <- function(feature_res, logfc_col="mean_logfc", features=NULL, min_sig_datasets=1,
