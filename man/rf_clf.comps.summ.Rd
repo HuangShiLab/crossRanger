@@ -9,13 +9,15 @@ rf_clf.comps.summ(
   f,
   comp_group,
   clr_transform = TRUE,
-  nfolds = 3,
+  nfolds = 1,
   verbose = FALSE,
   ntree = 5000,
   p_cutoff = 0.05,
   p.adj.method = "bonferroni",
   q_cutoff = 0.05,
-  outdir = NULL
+  outdir = NULL,
+  n_cores = NULL,
+  report_format = NULL
 )
 }
 \arguments{
@@ -25,9 +27,9 @@ rf_clf.comps.summ(
 
 \item{comp_group}{A string indicates the group in the f}
 
-\item{clr_transform}{A string indicates one class in the 'c_category' column of metadata.}
+\item{clr_transform}{A boolean value indicating if the clr-transformation applied.}
 
-\item{nfolds}{The number of folds in the cross validation.}
+\item{nfolds}{The number of folds in the cross validation. If 1, out-of-bag estimation is used.}
 
 \item{verbose}{A boolean value indicates if showing computation status and estimated runtime.}
 
@@ -39,7 +41,12 @@ rf_clf.comps.summ(
 
 \item{q_cutoff}{The cutoff of q values for features, the default value is 0.05.}
 
-\item{outdir}{The outputh directory, default is "./".}
+\item{outdir}{The output directory. If NULL, no file is written.}
+
+\item{n_cores}{The number of cores used for parallel computation.}
+
+\item{report_format}{An optional R Markdown output format ("html_document", "pdf_document" or "word_document").
+If provided, a report is rendered by \code{crossRanger_report} into \code{outdir}.}
 }
 \value{
 A list includes a summary of rf models in the sub datasets,
@@ -49,7 +56,7 @@ all important statistics for each of features, and plots.
 Runs standard random forests with oob estimation for classification of
 one level VS all other levels of one category in the datasets.
 The output includes a summary of rf models in the sub datasets,
-all important statistics for each of features, and plots.
+all important statistics for each of features, plots, and optionally an R Markdown report.
 }
 \examples{
 df <- data.frame(t(rmultinom(60, 300,c(.001,.6,.2,.3,.299))))

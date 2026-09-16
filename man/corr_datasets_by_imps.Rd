@@ -4,17 +4,38 @@
 \alias{corr_datasets_by_imps}
 \title{corr_datasets_by_imps}
 \usage{
-corr_datasets_by_imps(feature_imps_list, ranked = TRUE, plot = FALSE)
+corr_datasets_by_imps(
+  feature_imps_list,
+  ranked = TRUE,
+  plot = FALSE,
+  top_n = NULL,
+  min_datasets = NULL
+)
 }
 \arguments{
-\item{feature_imps_list}{a list of feature importance scores from the output of \code{rf_reg.by_datasets} or \code{rf_clf.by_datasets}}
+\item{feature_imps_list}{a list of feature importance scores from the output of \code{rf_reg.by_datasets} or \code{rf_clf.by_datasets},
+or the \code{rf_clf.by_datasets}/\code{rf_reg.by_datasets}/\code{rf_clf.comps} object itself.
+Importance scores are matched across datasets by feature names.}
 
 \item{ranked}{if transform importance scores into rank for correlation analysis}
 
 \item{plot}{if plot the correlation matrix}
+
+\item{top_n}{An optional number: if provided, the features ranked in the top N of each dataset are
+summarized in \code{feature_consistency}.}
+
+\item{min_datasets}{The minimum number of datasets in which a feature is top-ranked to be a universal marker.
+By default, all datasets.}
+}
+\value{
+A list including the correlation matrix (\code{corr_mat}), its p values (\code{p_mat}),
+the importance (\code{imp_mat}) and rank (\code{rank_mat}) matrices, and, if \code{top_n} is given,
+the \code{feature_consistency} table.
 }
 \description{
-The correlation of importance scores between datasets
+The correlation of importance scores between datasets, and the consistency of important
+features across datasets: features ranked in the top N of all (or at least \code{min_datasets}) datasets
+are candidate universal markers, whereas features top-ranked in fewer datasets are dataset-specific.
 }
 \examples{
 
@@ -32,9 +53,7 @@ metadata<-data.frame(f_s=factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep(
 reg_res<-rf_reg.by_datasets(df, metadata, s_category='f_d', c_category='age')
 corr_datasets_by_imps(reg_res$feature_imps_list, plot=TRUE)
 clf_res<-rf_clf.by_datasets(df, metadata, s_category='f_s', c_category='f_c')
-feature_imps_list <- lapply(clf_res$feature_imps_list, function(x) x[,"rf_imps"])
-names(feature_imps_list) <- levels(metadata[, 'f_s'])
-corr_datasets_by_imps(feature_imps_list, plot=TRUE)
+corr_datasets_by_imps(clf_res, plot=TRUE, top_n=2)
 }
 \seealso{
 ranger rf_clf.by_datasets rf_reg.by_datasets

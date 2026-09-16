@@ -1,8 +1,6 @@
 #' @import foreach
 #' @importFrom parallel detectCores
-#' @importFrom doMC registerDoMC
 #' @importFrom rlang .data
-#' @importFrom plyr mapvalues
 #' @importFrom stats sd var t.test wilcox.test bartlett.test oneway.test kruskal.test p.adjust
 
 
@@ -16,10 +14,12 @@
 #' @param positive_class A string indicating the specified class in the factor y.
 #' @param q_cutoff A number indicating the cutoff of q values after fdr correction.
 #' @param paired A logical indicating if paired between-group comparison is desired.
-#' @return ...
+#' For paired tests, the samples of the two groups should be in the same order of pairs.
+#' @return A data.frame including descriptive statistics of all samples and each group,
+#' the log2 fold changes (\code{mean_logfc}, \code{median_logfc}, \code{generalized_logfc}),
+#' p values and adjusted p values of parametric and non-parametric tests, and the enrichment (\code{Enr}) of each feature.
 #' @seealso clr, t.test, wilcox.test, oneway.test, kruskal.test
 #' @examples
-#' x0 <- data.frame(t(rmultinom(16,160,c(.001,.5,.3,.3,.299))) + 0.65)
 #' x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
 #'             t(rmultinom(8, 75, c(.201,.4,.12,.18,.099))),
 #'             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
@@ -45,28 +45,32 @@
 BetweenGroup.test <-function(x, y, clr_transform=FALSE, p.adj.method="bonferroni", positive_class=NA, q_cutoff=0.2, paired=FALSE){
   # p.adjust.methods
   # c("holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none")
-  if(clr_transform){ xx<-compositions::clr(x) }else{xx<-x}
+  y<-factor(y)
+  if(length(y)!=nrow(x)) stop("The length of y should match the number of rows of x.")
   n_group<-nlevels(y)
+  if(n_group < 2)
+    stop("y should be a factor with at least two levels\n")
   positive_class<-ifelse(is.na(positive_class), levels(y)[1], positive_class)
-  if(!is.numeric(n_group) | n_group==1)
-    stop("group must be a numeric and up to two levels\n")
-    test_output<-mttest(xx, y, p.adj.method=p.adj.method, paired=paired)
-    #  descriptive statistics of each feature (column) for all samples
-    desc_stats_all_df<-desc_stats_all(x, y, clr_transform=clr_transform)
-    #  descriptive statistics of each feature (column) for samples (rows) grouped by y
-    desc_stats_by_group_df<-desc_stats_by_group(x, y, clr_transform=clr_transform, positive_class=positive_class)
-    #-------------------------------Enrichment
-    Enr_all<-Enr_by_q_cutoff(test_output, desc_stats_by_group_df, positive_class, q_cutoff=q_cutoff)
-    #-------------------------------
-    output1<-data.frame(desc_stats_all_df, desc_stats_by_group_df, test_output,  Enr_all)
-    output1
+  if(!positive_class %in% levels(y)) stop("The positive_class '", positive_class, "' is not a level of y.")
+  if(clr_transform){ xx<-compositions::clr(x) }else{xx<-x}
+  test_output<-mttest(xx, y, p.adj.method=p.adj.method, paired=paired)
+  #  descriptive statistics of each feature (column) for all samples
+  desc_stats_all_df<-desc_stats_all(x, y, positive_class=positive_class, clr_transform=clr_transform)
+  #  descriptive statistics of each feature (column) for samples (rows) grouped by y
+  desc_stats_by_group_df<-desc_stats_by_group(x, y, clr_transform=clr_transform, positive_class=positive_class)
+  #-------------------------------Enrichment
+  Enr_all<-Enr_by_q_cutoff(test_output, desc_stats_by_group_df, positive_class, q_cutoff=q_cutoff)
+  #-------------------------------
+  output1<-data.frame(desc_stats_all_df, desc_stats_by_group_df, test_output,  Enr_all)
+  output1
 }
 
 
 #' @title log.mat
 #' @description Log transformation of a data matrix with pseudo count.
-#' @param mat A data.martrix or data.frame including multiple numeric vectors.
+#' @param x A data.martrix, data.frame or numeric vector.
 #' @param base The base in the log-transformation.
+#' @details If any value is zero, half of the minimum positive value is added to all values as a pseudo count.
 #' @examples
 #' x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
 #'             t(rmultinom(8, 75, c(.201,.4,.12,.18,.099))),
@@ -76,42 +80,48 @@ BetweenGroup.test <-function(x, y, clr_transform=FALSE, p.adj.method="bonferroni
 #' log.mat(x, base=10)
 #' @rdname log.mat
 #' @author Shi Huang
-#' @export
-log.mat<-function(mat, base=2){
-  if(any(mat == 0)) {
-    if(sum(mat == 0) == length(unlist(mat))) {
-      mat <- mat + 1e-5
+#' @rawNamespace export(log.mat)
+#' @rawNamespace S3method(log, mat)
+log.mat<-function(x, base=2){
+  if(any(x == 0)) {
+    v <- unlist(x)
+    if(all(v == 0)) {
+      x <- x + 1e-5
     }
     else{
-      v <- as.vector(mat)
       minval <- min(v[v > 0])/2
-      mat <- mat + minval
+      x <- x + minval
     }
   }
-  out<-log(mat, base)
+  out<-log(x, base)
   return(out)
 }
 
 
 #' @title mttest
 #' @description Perform the univariate test for all features in the compositional microbiome data.
+#' Two-sample t test and Wilcoxon rank-sum (or signed-rank if paired) test for two groups,
+#' and Welch's one-way ANOVA and Kruskal-Wallis test for more than two groups.
 #' @param x A data.martrix or data.frame including multiple numeric vectors.
 #' @param y A factor with two or more levels.
 #' @param p.adj.method A string indicating the p-value correction method.
 #' @param paired A logical indicating if paired between-group comparison is desired.
+#' @return A matrix of p values and adjusted p values. The p value is NA if a test cannot be computed
+#' (e.g., the values are constant within both groups).
 #' @examples
 #' y <-factor(c(rep("A", 30), rep("B", 30)))
-#' y <-factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15)))
+#' y1 <-factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15)))
 #' x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
 #'             t(rmultinom(8, 75, c(.201,.4,.12,.18,.099))),
 #'             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
 #'             t(rmultinom(15, 75, c(.091,.2,.32,.18,.209))),
 #'             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
-#' mttest(x, y, clr_transform=FALSE)
-#' mttest(x, y, clr_transform=TRUE)
+#' mttest(x, y)
+#' mttest(x, y1)
 #' @author Shi Huang
 #' @export
 mttest<-function(x, y, p.adj.method="bonferroni", paired=FALSE){
+  y<-factor(y)
   test_output<-matrix(NA, ncol=4, nrow=ncol(x))
   rownames(test_output)<-colnames(x)
   colnames(test_output)<- c("param.test_p","non.param.test_p","param.test_p.adj","non.param.test_p.adj")
@@ -120,15 +130,22 @@ mttest<-function(x, y, p.adj.method="bonferroni", paired=FALSE){
     lapply(seq_along(x),
            function(i) c(x[[i]], lapply(list(...), function(y) y[[i]])))
   }
-  oper<-foreach::foreach(i=1:ncol(x), .combine='comb', .multicombine=TRUE, .init=list(c(), c())) %dopar% {
-    if(stats::var(x[, i])==0){test_out1<-test_out2<-1
+  safe_p <- function(test) tryCatch(test$p.value, error=function(e) NA_real_)
+  # run the features in parallel only if a backend is registered; inside the workers of another
+  # parallel loop there is none, and %do% avoids both nested parallelism and its warning
+  `%run%` <- if(foreach::getDoParRegistered()) foreach::`%dopar%` else foreach::`%do%`
+  oper<-foreach::foreach(i=1:ncol(x), .combine='comb', .multicombine=TRUE, .init=list(c(), c())) %run% {
+    xi<-as.numeric(x[, i])
+    if(stats::var(xi)==0){test_out1<-test_out2<-1
     }else{
       if(nlevels(y)==2){
-        test_out1<-t.test(x[,i]~y, paired=paired)$p.value
-        test_out2<-wilcox.test(x[,i]~y, paired=paired, conf.int=TRUE, exact=FALSE, correct=FALSE)$p.value
+        g1<-xi[y==levels(y)[1]]
+        g2<-xi[y==levels(y)[2]]
+        test_out1<-safe_p(t.test(g1, g2, paired=paired))
+        test_out2<-safe_p(wilcox.test(g1, g2, paired=paired, exact=FALSE, correct=FALSE))
       }else{
-        test_out1<-oneway.test(x[,i]~y, var.equal=FALSE)$p.value
-        test_out2<-kruskal.test(x[,i]~y)$p.value
+        test_out1<-safe_p(oneway.test(xi~y, var.equal=FALSE))
+        test_out2<-safe_p(kruskal.test(xi~y))
       }
     }
     out<-c(test_out1, test_out2)
@@ -160,6 +177,7 @@ mttest<-function(x, y, p.adj.method="bonferroni", paired=FALSE){
 #' @author Shi Huang
 #' @export
 desc_stats_all<-function(x, y, positive_class=NA, clr_transform=FALSE){
+  y<-factor(y)
   OccRate<-function(x) sum(x!=0)/length(x)
   func_all_list<-c("mean_all", "var_all", "sd_all", "OccRate_all", "AUROC", "AUPRC")
   positive_class<-ifelse(is.na(positive_class), levels(y)[1], positive_class)
@@ -196,10 +214,10 @@ desc_stats_all<-function(x, y, positive_class=NA, clr_transform=FALSE){
 #' @author Shi Huang
 #' @export
 desc_stats_by_group<-function(x, y, clr_transform=FALSE, positive_class=NA){
-  positive_class<-ifelse(is.na(positive_class), levels(factor(y))[1], positive_class)
+  y<-factor(y)
+  positive_class<-ifelse(is.na(positive_class), levels(y)[1], positive_class)
   OccRate<-function(x) sum(x!=0)/length(x)
   log10_median<-function(x, base=10) log.mat(stats::median(x), base=10)
-  log10_mean<-function(x, base=10) log.mat(stats::median(x), base=10)
 
   mean_logfc<-function(x, y, base=2, positive_class.=positive_class){
     if(nlevels(y)>2) levels(y)[levels(y)!=positive_class] <- "Others"
@@ -216,8 +234,7 @@ desc_stats_by_group<-function(x, y, clr_transform=FALSE, positive_class=NA){
   }
 
   new_quantile <- function(x) {
-    r <- quantile(x, probs = seq(0.05, 0.95, 0.05))
-    #r[r < min(x)] <- 0
+    r <- quantile(x, probs = seq(0.05, 0.95, 0.05), na.rm = TRUE) # NaN from log of negative (e.g., pre-transformed) values
     return (r)
   }
 
@@ -260,35 +277,25 @@ desc_stats_by_group<-function(x, y, clr_transform=FALSE, positive_class=NA){
 #' @param desc_stats_by_group_df The output from function \code{desc_stats_by_group}.
 #' @param positive_class A string indicating the specified class in the factor y.
 #' @param q_cutoff A number indicating the cutoff of q values after fdr correction.
+#' @return A data.frame with the significance (\code{IfSig}), and the enrichment (\code{Enr}: "Neutral",
+#' "<positive_class>_depleted" or "<positive_class>_enriched") of each feature.
 #' @examples
 #' y <-factor(c(rep("A", 30), rep("B", 30)))
-#' y1<-factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15)))
 #' x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
 #'             t(rmultinom(8, 75, c(.201,.4,.12,.18,.099))),
 #'             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
 #'             t(rmultinom(15, 75, c(.091,.2,.32,.18,.209))),
 #'             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
 #' test_output<-mttest(x, y, p.adj.method="bonferroni", paired=FALSE)
-#' test_output<-mttest(x, y1, p.adj.method="bonferroni", paired=FALSE)
 #' desc_stats_by_group_df<-desc_stats_by_group(x, y, clr_transform=FALSE)
-#' desc_stats_by_group_df<-desc_stats_by_group(x, y1, clr_transform=FALSE)
 #' Enr_by_q_cutoff(test_output, desc_stats_by_group_df, q_cutoff=0.05, "A")
 #' @export
 Enr_by_q_cutoff<-function(test_output, desc_stats_by_group_df, positive_class=NA, q_cutoff=0.05){
-  # positive_class<-ifelse(is.na(positive_class), levels(factor(y))[1], positive_class)
-  # require("plyr")
-  IfSig<-as.factor(ifelse(test_output[, "non.param.test_p.adj"]< q_cutoff, "Sig", "NotSig"))
-  Enr0<-factor(ifelse(desc_stats_by_group_df$mean_logfc>0, paste(positive_class, "enriched", sep="_"), paste(positive_class, "depleted", sep="_")))
+  enriched<-paste(positive_class, "enriched", sep="_")
+  depleted<-paste(positive_class, "depleted", sep="_")
+  IfSig<-factor(ifelse(test_output[, "non.param.test_p.adj"]< q_cutoff, "Sig", "NotSig"), levels=c("NotSig", "Sig"))
+  Enr0<-factor(ifelse(desc_stats_by_group_df$mean_logfc>0, enriched, depleted), levels=c(depleted, enriched))
   IfSigEnr<-interaction(IfSig, Enr0)
-  Enr<-plyr::mapvalues(IfSigEnr,
-                       c(paste("NotSig.",positive_class,"_depleted",sep=""),
-                         paste("NotSig.",positive_class,"_enriched",sep=""),
-                         paste("Sig.",positive_class,"_depleted",sep=""),
-                         paste("Sig.",positive_class,"_enriched",sep="")),
-                       c("Neutral", "Neutral",
-                         paste(positive_class,"_depleted",sep=""),
-                         paste(positive_class,"_enriched",sep="")))
+  Enr<-factor(ifelse(IfSig=="Sig", as.character(Enr0), "Neutral"), levels=c("Neutral", depleted, enriched))
   data.frame(IfSig,IfSigEnr,Enr)
 }
-
-

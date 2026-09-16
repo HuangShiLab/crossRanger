@@ -22,7 +22,7 @@ plot_clf_res_list(
 
 \item{q_cutoff}{A number indicating the cutoff of q values after fdr correction.}
 
-\item{outdir}{The output directory.}
+\item{outdir}{The output directory. If NULL, no file is written.}
 
 \item{plot_height}{The plot height.}
 }
@@ -36,7 +36,6 @@ df <- data.frame(rbind(t(rmultinom(7, 75, c(.21,.6,.12,.38,.099))),
             t(rmultinom(15, 75, c(.011,.6,.22,.28,.289))),
             t(rmultinom(15, 75, c(.091,.6,.32,.18,.209))),
             t(rmultinom(15, 75, c(.001,.6,.42,.58,.299)))))
-df0 <- data.frame(t(rmultinom(60, 300,c(.001,.6,.2,.3,.299))))
 metadata<-data.frame(f_s=factor(c(rep("A", 15), rep("B", 15), rep("A", 15), rep("B", 15))),
                      f_c=factor(c(rep("C", 30), rep("D", 30))),
                      f_d=factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15))),

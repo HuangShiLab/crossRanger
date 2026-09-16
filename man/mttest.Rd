@@ -15,19 +15,25 @@ mttest(x, y, p.adj.method = "bonferroni", paired = FALSE)
 
 \item{paired}{A logical indicating if paired between-group comparison is desired.}
 }
+\value{
+A matrix of p values and adjusted p values. The p value is NA if a test cannot be computed
+(e.g., the values are constant within both groups).
+}
 \description{
 Perform the univariate test for all features in the compositional microbiome data.
+Two-sample t test and Wilcoxon rank-sum (or signed-rank if paired) test for two groups,
+and Welch's one-way ANOVA and Kruskal-Wallis test for more than two groups.
 }
 \examples{
 y <-factor(c(rep("A", 30), rep("B", 30)))
-y <-factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15)))
+y1 <-factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15)))
 x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
             t(rmultinom(8, 75, c(.201,.4,.12,.18,.099))),
             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
             t(rmultinom(15, 75, c(.091,.2,.32,.18,.209))),
             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
-mttest(x, y, clr_transform=FALSE)
-mttest(x, y, clr_transform=TRUE)
+mttest(x, y)
+mttest(x, y1)
 }
 \author{
 Shi Huang

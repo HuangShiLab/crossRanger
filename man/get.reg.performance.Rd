@@ -19,6 +19,9 @@ A list of regression performance metrics.
 \description{
 Get regression performance
 }
+\details{
+The adjusted R squared is NA when the number of features is not smaller than the number of samples minus one.
+}
 \author{
 Shi Huang
 }

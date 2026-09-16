@@ -7,16 +7,20 @@
 rf_clf.cross_appl(rf_model_list, x_list, y_list, positive_class = NA)
 }
 \arguments{
-\item{rf_model_list}{A list of rf.model objects from \code{rf.out.of.bag}.}
+\item{rf_model_list}{A list of rf.model objects from \code{rf.out.of.bag} or \code{rf.cross.validation}.
+For \code{rf.cross.validation}, the predicted probabilities are averaged over the models of all folds.}
 
-\item{x_list}{A list of training datasets usually in the format of data.frame.}
+\item{x_list}{A list of training datasets usually in the format of data.frame.
+Features are matched to the model by feature IDs; features absent from a test dataset are set to 0 with a warning.}
 
 \item{y_list}{A list of responsive vector for regression in the training datasets.}
 
 \item{positive_class}{A string indicates one common class in each of elements in the y_list.}
 }
 \value{
-A object of class rf_clf.cross_appl including a list of performance summary and predicted values of all predictions
+A object of class rf_clf.cross_appl including a performance summary (\code{perf_summ}),
+the predicted values of all predictions (\code{predicted}), and a named list of
+data.frames with the observed classes, predicted classes and probabilities (\code{prediction_list}).
 }
 \description{
 Based on pre-computed rf models classifying 'c_category' in each the sub-datasets splited by the 's_category',
@@ -29,7 +33,6 @@ df <- data.frame(rbind(t(rmultinom(14, 14*5, c(.21,.6,.12,.38,.099))),
             t(rmultinom(30, 30*5, c(.011,.6,.22,.28,.289))),
             t(rmultinom(30, 30*5, c(.091,.6,.32,.18,.209))),
             t(rmultinom(30, 30*5, c(.001,.6,.42,.58,.299)))))
-df0 <- data.frame(t(rmultinom(120, 600,c(.001,.6,.2,.3,.299))))
 metadata<-data.frame(f_s=factor(c(rep("A", 30), rep("B", 30), rep("C", 30), rep("D", 30))),
                      f_c=factor(c(rep("C", 14), rep("H", 16), rep("C", 14), rep("H", 16),
                                   rep("C", 14), rep("H", 16), rep("C", 14), rep("H", 16))),
@@ -38,12 +41,12 @@ res_list<-rf_clf.by_datasets(df, metadata, s_category='f_s', nfolds=5,
                              c_category='f_c', positive_class="C")
 rf_model_list<-res_list$rf_model_list
 
-rf_clf.cross_appl(rf_model_list, res_list$x_list, res_list$y_list, positive_class="C")
+cross_rf<-rf_clf.cross_appl(rf_model_list, res_list$x_list, res_list$y_list, positive_class="C")
+cross_rf$perf_summ
 #--------------------
 comp_group="A"
 comps_res<-rf_clf.comps(df, f=metadata[, 'f_s'], comp_group, verbose=FALSE,
                         ntree=500, p.adj.method = "bonferroni", q_cutoff=0.05)
-comps_res
 rf_clf.cross_appl(comps_res$rf_model_list,
                   x_list=comps_res$x_list,
                   y_list=comps_res$y_list,

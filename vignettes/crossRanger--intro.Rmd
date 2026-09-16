@@ -1,0 +1,121 @@
+---
+title: "Introduction to crossRanger"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to crossRanger}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6, fig.height = 4,
+                      message = FALSE, warning = FALSE)
+```
+
+crossRanger builds random forest (RF) models within multiple microbiome datasets, transfers
+the models across datasets, and discovers generalizable biomarkers. This vignette walks through
+the four modules of the package with a simulated multi-cohort case-control dataset.
+
+```{r}
+library(crossRanger)
+data(crossRanger_sim)
+abundance <- crossRanger_sim$abundance
+metadata <- crossRanger_sim$metadata
+table(metadata$cohort, metadata$disease_status)
+```
+
+Each subject contributes two samples (visits), which are correlated. In all cohorts, cases are
+enriched in `g__Genus01-03` and depleted in `g__Genus04-05`; each cohort also has one cohort-specific marker.
+
+## Module 1: within-study modeling
+
+`rf_clf.by_datasets()` trains one classifier per dataset (`s_category`) for the target
+(`c_category`). Group k-fold cross-validation keeps both samples of a subject in the same fold,
+preventing information leakage.
+
+```{r, results = "hide"}
+res <- rf_clf.by_datasets(abundance, metadata, s_category = "cohort", c_category = "disease_status",
+                          positive_class = "Case", nfolds = 5, cv_type = "group",
+                          g_category = "subject_id", ntree = 200, n_cores = 2)
+```
+
+```{r}
+res$perf_summ[, c("Dataset", "Sample_size", "Validation_type", "AUROC", "AUPRC", "Accuracy", "F1")]
+plot_clf_ROC(res)
+```
+
+Feature tables from separate studies can also be supplied as a list; they are harmonized to
+the shared features with `harmonize_features()`.
+
+## Module 2: cross-dataset transfer
+
+`rf_clf.cross_appl()` applies each model to every other dataset. `rf_clf.lodo()` trains on all
+datasets but one and tests on the held-out dataset.
+
+```{r, results = "hide"}
+cross_rf <- rf_clf.cross_appl(res$rf_model_list, res$x_list, res$y_list, positive_class = "Case")
+lodo <- rf_clf.lodo(abundance, metadata, s_category = "cohort", c_category = "disease_status",
+                    positive_class = "Case", ntree = 200, n_cores = 2)
+```
+
+```{r}
+plot_cross_appl(cross_rf, metric = "AUROC")
+lodo$perf_summ[, c("Test_data", "Train_size", "Test_size", "AUROC", "Accuracy")]
+```
+
+## Module 3: feature selection and biomarker discovery
+
+Recursive feature elimination (RFE) identifies the smallest feature set whose cross-validated
+AUROC is within 1% of the best one.
+
+```{r, results = "hide"}
+cohort_a <- metadata$cohort == "Cohort_A"
+x_a <- abundance[cohort_a, ]
+y_a <- metadata$disease_status[cohort_a]
+rfe <- rf_clf.rfe(x_a, y_a, nfolds = factor(group.folds(metadata$subject_id[cohort_a], 5)),
+                  metric = "AUROC", tolerance = 0.01, ntree = 200)
+```
+
+```{r}
+plot_clf_feature_selection(rfe)$plot
+rfe$selected_features
+```
+
+Univariate tests on CLR-transformed data complement the ML-derived rankings.
+Features both selected by RFE and significant in the tests form a robust biomarker set.
+
+```{r}
+bg_test <- BetweenGroup.test(x_a, y_a, clr_transform = TRUE, p.adj.method = "fdr", q_cutoff = 0.05)
+markers <- id_robust_markers(rfe, bg_test)
+head(markers[, c("feature", "rf_selected", "non.param.test_p.adj", "mean_logfc", "Enr", "robust_marker")])
+```
+
+Across datasets, the log2 fold change heatmap and the consistency of importance rankings separate
+universal markers from cohort-specific ones.
+
+```{r, fig.height = 5}
+plot_logfc_heatmap(res, min_sig_datasets = 1)$plot
+consistency <- corr_datasets_by_imps(res, top_n = 5)
+head(consistency$feature_consistency)
+```
+
+## Module 4: regression, visualization and reports
+
+The regression functions share the same infrastructure, e.g., predicting age within each cohort:
+
+```{r, results = "hide"}
+reg <- rf_reg.by_datasets(abundance, metadata, s_category = "cohort", c_category = "age",
+                          nfolds = 5, cv_type = "group", g_category = "subject_id",
+                          ntree = 200, n_cores = 2)
+```
+
+```{r}
+reg$perf_summ[, c("Dataset", "MAE", "RMSE", "R_squared", "Spearman_rho")]
+```
+
+All results can be combined into a reproducible HTML, PDF or Word report:
+
+```{r, eval = FALSE}
+crossRanger_report(Within_study = res, Cross_application = cross_rf, LODO = lodo,
+                   RFE_Cohort_A = rfe, Age_regression = reg, outdir = "crossRanger_results")
+```

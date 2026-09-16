@@ -7,7 +7,7 @@
 rf_clf.by_datasets(
   df,
   metadata,
-  s_category,
+  s_category = NULL,
   c_category,
   positive_class = NA,
   rf_imp_pvalues = FALSE,
@@ -16,15 +16,22 @@ rf_clf.by_datasets(
   verbose = FALSE,
   ntree = 500,
   p.adj.method = "BH",
-  q_cutoff = 0.05
+  q_cutoff = 0.05,
+  cv_type = c("stratified", "group", "logo"),
+  g_category = NULL,
+  n_cores = NULL,
+  ...
 )
 }
 \arguments{
-\item{df}{Training data: a data.frame.}
+\item{df}{Training data: a data.frame, or a named list of data.frames (e.g., one feature table per study).
+A list of feature tables is harmonized to the features shared by all datasets (see \code{harmonize_features}).}
 
-\item{metadata}{Sample metadata with at least two columns.}
+\item{metadata}{Sample metadata with at least two columns: a data.frame, or a list of data.frames in the same order as the list of feature tables.
+If both the feature table and the metadata have sample IDs as rownames, samples are matched by IDs.}
 
-\item{s_category}{A string indicates the category in the sample metadata: a ‘factor’ defines the sample grouping for data spliting.}
+\item{s_category}{A string indicates the category in the sample metadata: a ‘factor’ defines the sample grouping for data spliting
+(e.g., study, cohort, body site or timepoint). If NULL and \code{df} is a list, the datasets are defined by the list names.}
 
 \item{c_category}{A indicates the category in the sample metadata as a responsive vector: if a 'factor', rf classification is performed in each of splited datasets.}
 
@@ -34,24 +41,36 @@ rf_clf.by_datasets(
 
 \item{clr_transform}{A boolean value indicating if the clr-transformation applied.}
 
-\item{nfolds}{The number of folds in the cross validation.}
+\item{nfolds}{The number of folds in the cross validation. If 1, out-of-bag estimation is used.}
 
 \item{verbose}{A boolean value indicating if show computation status and estimated runtime.}
 
 \item{ntree}{The number of trees.}
 
-\item{p.adj.method}{The p-value correction method, default is "bonferroni".}
+\item{p.adj.method}{The p-value correction method, default is "BH".}
 
 \item{q_cutoff}{The cutoff of q values for features, the default value is 0.05.}
+
+\item{cv_type}{The cross-validation strategy within each dataset: "stratified" (stratified k-fold CV, or OOB if nfolds=1),
+"group" (group k-fold CV) or "logo" (leave-one-group-out CV). "group" and "logo" require \code{g_category}.}
+
+\item{g_category}{A string indicating the grouping column in metadata for group k-fold or leave-one-group-out CV
+(e.g., subject ID in a longitudinal study, or family ID).}
+
+\item{n_cores}{The number of cores used for parallel computation. By default, all but four cores.}
+
+\item{...}{Other parameters applicable to \code{ranger}.}
 }
 \value{
-...
+An object of class \code{rf_clf.by_datasets}, a list including \code{x_list}, \code{y_list},
+\code{datasets}, \code{sample_size}, \code{rf_model_list}, \code{rf_AUROC}, \code{rf_AUPRC},
+\code{feature_imps_list} and the performance summary \code{perf_summ}.
 }
 \description{
-It runs standard random forests with oob estimation for classification of
-c_category in each the sub-datasets splited by the s_category,
-and apply the model to all the other datasets. The output includes
-accuracy, auc and Kappa statistics.
+It runs standard random forests with oob estimation or cross-validation for classification of
+c_category in each the sub-datasets splited by the s_category. The output includes the rf models,
+a within-study performance summary (accuracy, AUROC, AUPRC, Kappa statistics, sensitivity, specificity, F1 etc.)
+and the statistics of all features.
 }
 \examples{
 df <- data.frame(rbind(t(rmultinom(14, 14*5, c(.21,.6,.12,.38,.099))),
@@ -59,20 +78,29 @@ df <- data.frame(rbind(t(rmultinom(14, 14*5, c(.21,.6,.12,.38,.099))),
             t(rmultinom(30, 30*5, c(.011,.6,.22,.28,.289))),
             t(rmultinom(30, 30*5, c(.091,.6,.32,.18,.209))),
             t(rmultinom(30, 30*5, c(.001,.6,.42,.58,.299)))))
-df0 <- data.frame(t(rmultinom(120, 600,c(.001,.6,.2,.3,.299))))
 metadata<-data.frame(f_s=factor(c(rep("A", 30), rep("B", 30), rep("C", 30), rep("D", 30))),
                      f_c=factor(c(rep("C", 14), rep("H", 16), rep("C", 14), rep("H", 16),
                                   rep("C", 14), rep("H", 16), rep("C", 14), rep("H", 16))),
-                     f_d=factor(rep(c(rep("a", 10), rep("b", 10), rep("c", 10)), 4)))
-system.time(rf_clf.by_datasets(df, metadata, s_category='f_s',
-            c_category='f_c', positive_class="C"))
+                     f_d=factor(rep(c(rep("a", 10), rep("b", 10), rep("c", 10)), 4)),
+                     subject=factor(rep(1:60, each=2)))
+res <- rf_clf.by_datasets(df, metadata, s_category='f_s', c_category='f_c',
+                          positive_class="C", ntree=100)
+res$perf_summ
+\donttest{
 rf_clf.by_datasets(df, metadata, s_category='f_s', c_category='f_c',
                    positive_class="C", rf_imp_pvalues=TRUE)
 rf_clf.by_datasets(df, metadata, s_category='f_s', c_category='f_d')
-rf_clf.by_datasets(df, metadata, s_category='f_s', c_category='f_d', rf_imp_pvalues=TRUE)
+# group k-fold CV: samples from the same subject are kept in the same fold
+rf_clf.by_datasets(df, metadata, s_category='f_s', c_category='f_c', positive_class="C",
+                   nfolds=3, cv_type="group", g_category="subject")$perf_summ
+# a list of feature tables (one per study) and a list of metadata
+df_list <- split(df, metadata$f_s)
+md_list <- split(metadata, metadata$f_s)
+rf_clf.by_datasets(df_list, md_list, c_category='f_c', positive_class="C")$perf_summ
+}
 }
 \seealso{
-ranger
+ranger rf_clf.cross_appl rf_clf.lodo
 }
 \author{
 Shi Huang

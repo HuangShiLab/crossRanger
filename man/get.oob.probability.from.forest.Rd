@@ -7,7 +7,7 @@
 get.oob.probability.from.forest(model, x)
 }
 \arguments{
-\item{model}{A model object in the class of `rf.out.of.bag`.}
+\item{model}{A \code{ranger} classification model trained with \code{keep.inbag=TRUE}.}
 
 \item{x}{The training data.}
 }

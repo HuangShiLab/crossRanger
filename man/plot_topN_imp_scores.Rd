@@ -12,11 +12,13 @@ plot_topN_imp_scores(
   bar_color = NA,
   outdir = NULL,
   plot_height = 8,
-  plot_width = 5
+  plot_width = 5,
+  n_features = NULL
 )
 }
 \arguments{
-\item{rf_model}{The rf model from \code{rf.out.of.bag} or \code{rf.cross.validation}}
+\item{rf_model}{The rf model from \code{rf.out.of.bag} or \code{rf.cross.validation}, or the feature selection
+result from \code{rf_clf.rfe}/\code{rf_reg.rfe} (the model of the step with \code{n_features} features is used).}
 
 \item{topN}{A number indicating how many top important feature need to visualize in the barplot.}
 
@@ -31,9 +33,15 @@ plot_topN_imp_scores(
 \item{plot_height}{plotting parameter.}
 
 \item{plot_width}{plotting parameter.}
+
+\item{n_features}{For a feature selection result, the size of the feature set whose model is plotted.
+By default, the optimal number of features.}
+}
+\value{
+A list including the importance table of all features ordered by rank (\code{imps_df}) and the plot.
 }
 \description{
-plot_topN_imp_scores
+Bar plot of the top N features ranked by random forest importance scores.
 }
 \examples{
 set.seed(123)
@@ -46,6 +54,7 @@ y<-factor(c(rep("1", 20), rep("A", 20), rep("C", 20)))
 feature_md <- data.frame(Feature_ID=c("X1", "X2", "X3", "X4", "X5"),
                          Taxon=c("AA", "Bd", "CC", "CC", "AA"))
 rf_model<-rf.out.of.bag(x, y)
+plot_topN_imp_scores(rf_model, topN=4)
 rf_model<-rf.cross.validation(x, y, nfolds=5)
 plot_topN_imp_scores(rf_model, topN=4, feature_md, outdir=NULL, bar_color="Taxon")
 }

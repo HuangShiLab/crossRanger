@@ -7,6 +7,35 @@
 #' @importFrom utils write.table
 #' @importFrom gtools rdirichlet
 
+.higher_is_better <- function(metric) !metric %in% c("MSE", "RMSE", "nRMSE", "MAE", "MAPE", "MASE")
+
+# Performance of a prediction: `prediction` is a numeric vector for regression, or a list/model
+# with `predicted` classes and class `probabilities` for classification (y is a factor).
+.perf_metric <- function(y, prediction, metric, positive_class=NA, n_features=NA){
+  if(is.factor(y)){
+    positive_class <- ifelse(is.na(positive_class), levels(y)[1], positive_class)
+    .clf_perf_row(prediction$predicted, y, prediction$probabilities, positive_class)[[metric]]
+  }else{
+    get.reg.performance(prediction, y, n_features)[[metric]]
+  }
+}
+
+.emp_p_value <- function(perf_value, rand_perf_values, higher_better){
+  rand_perf_values <- rand_perf_values[!is.na(rand_perf_values)]
+  n_extreme <- if(higher_better) sum(rand_perf_values >= perf_value) else sum(rand_perf_values <= perf_value)
+  (n_extreme + 1)/(length(rand_perf_values) + 1)
+}
+
+.plot_perf_vs_rand <- function(perf_value, rand_perf_values, emp_p_value, metric){
+  perf_values<-data.frame(perf_value, rand_perf_values)
+  label = paste(metric, ": ", as.character(round(perf_value, 2)), "\np-value = ", signif(emp_p_value, 2), sep="")
+  p<-ggplot(perf_values, aes(x=.data$rand_perf_values)) + geom_histogram(alpha=0.5, bins=30) +
+    xlab(metric)+
+    ylab("count")+
+    geom_vline(xintercept = perf_value, color="red") +
+    annotate(geom="text", x=perf_value, y=Inf, label=label, color="red", vjust=2, hjust=0)+theme_bw()
+  list(perf_values=perf_values, plot=p)
+}
 
 #' @title plot_obs_VS_pred
 #' @description Plot a scatterplot of observed and predicted values from a ranger model.
@@ -44,10 +73,9 @@ plot_obs_VS_pred <- function(y, predicted_y, SampleIDs=NULL, prefix="train", tar
     ylab(paste("Predicted ",target_field,sep=""))+
     xlab(paste("Observed ",target_field,sep=""))+
     geom_point(alpha=0.1)+
-    geom_smooth(method="loess",span=span)+
+    geom_smooth(method="loess", formula=y ~ x, span=span)+
     annotate(geom="text", x=Inf, y=Inf, label=label, color="grey60", vjust=2, hjust=2)+
     theme_bw()
-  #coord_flip()+
   if(!is.null(outdir)){
     ggsave(filename=paste(outdir, prefix, ".", target_field, ".obs_vs_pred.scatterplot.pdf",sep=""), plot=p, height=4, width=4)
     sink(paste(outdir, prefix, ".", target_field, ".obs_vs_pred.results.xls",sep=""));cat("\t")
@@ -87,7 +115,6 @@ plot_residuals <- function(y, predicted_y, SampleIDs=NULL, prefix="train", targe
     xlab(paste("Observed ",target_field,sep=""))+
     geom_point(alpha=0.1)+
     geom_hline(yintercept=0)+
-    #geom_smooth(method="loess",span=span)+
     theme_bw()
   if(!is.null(outdir)){
   ggsave(filename=paste(outdir, prefix, ".", target_field, ".obs_vs_residuals_of_pred.scatterplot.pdf",sep=""), plot=p, height=4, width=4)
@@ -99,20 +126,25 @@ plot_residuals <- function(y, predicted_y, SampleIDs=NULL, prefix="train", targe
 }
 
 #' @title plot_perf_VS_rand
-#' @description This outputs a histogram and a p-value showing if the performance of a real regression model
-#' significantly better than null models.
+#' @description This outputs a histogram and an empirical p-value showing if the performance of a real
+#' regression or classification model is significantly better than null models built on permuted labels.
 #' @param x The train data.
-#' @param y The numeric labeling data.
+#' @param y The numeric labeling data (regression) or a factor (classification).
 #' @param nfolds The number of folds in the cross validation. If nfolds > length(y)
 #' or nfolds==-1, uses leave-one-out cross-validation. If nfolds was a factor, it means customized folds
 #' (e.g., leave-one-group-out cv) were set for CV.
-#' @param predicted_y The predicted values for y.
+#' @param predicted_y The predicted values for y (regression), or the rf classification model
+#' (\code{rf.out.of.bag} or \code{rf.cross.validation}) whose predictions are evaluated (classification).
 #' @param n_features The number of features in the training data.
 #' @param prefix The prefix for the dataset in the training or testing.
-#' @param target_field A string indicating the target field of the metadata for regression.
-#' @param metric The regression performance metric applied, including MAE, RMSE, MSE, R_squared, Adj_R_squared, or Separman_rho.
-#' @param permutation The permutation times for a random guess of regression performance.
+#' @param target_field A string indicating the target field of the metadata.
+#' @param metric The performance metric applied: MAE, RMSE, MSE, MAPE, R_squared, Adj_R_squared or Spearman_rho for regression;
+#' AUROC, AUPRC, Accuracy, Kappa, F1 or Balanced_Accuracy for classification.
+#' @param permutation The permutation times for a random guess of performance.
 #' @param outdir The output directory.
+#' @param positive_class A class of y for classification.
+#' @param n_cores The number of cores for running the permutations in parallel.
+#' @return A list including the empirical p value, the observed and permuted performance, and the histogram.
 #' @examples
 #' set.seed(123)
 #' x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
@@ -123,59 +155,52 @@ plot_residuals <- function(y, predicted_y, SampleIDs=NULL, prefix="train", targe
 #' y<- 1:60
 #' rf_model<-rf.out.of.bag(x, y)
 #' p<-plot_perf_VS_rand(x=x, y=y, predicted_y=rf_model$predicted, prefix="train", nfolds=5,
-#' permutation=100, metric="MAE", target_field="age", n_features=5)
-#' p
+#' permutation=20, metric="MAE", target_field="age", n_features=5)
+#' p$emp_p_value
+#' y_clf <- factor(rep(c("A", "B"), each=30))
+#' clf_model <- rf.cross.validation(x, y_clf, nfolds=5)
+#' plot_perf_VS_rand(x=x, y=y_clf, predicted_y=clf_model, nfolds=5,
+#'                   permutation=20, metric="AUROC")$plot
 #' @author Shi Huang
 #' @export
-plot_perf_VS_rand<-function(x, y, predicted_y, prefix="train", target_field, nfolds,
-                            metric="MAE", permutation=100, n_features=NA, outdir=NULL){
-  # rand_perf <- function(y, permutation.=permutation, metric.=metric,
-  #                       n_features.=n_features){
-  #   set.seed(123)
-  #   rand_y_mat <-replicate(permutation, sample(y, replace = FALSE))
-  #   rand_perf_values <- apply(rand_y_mat, 2, function(x) get.reg.performance(x, y, n_features)[[metric]])
-  #   rand_perf_values
-  # }
-  # rand_perf_values=rand_perf(y)
-  shuffle_y_perf <- function(x, y, permutation.=permutation, metric.=metric, nfolds.=nfolds,
-                        n_features.=n_features){
-    set.seed(123)
-    rand_y_mat <-replicate(permutation, sample(y, replace = FALSE))
-    rand_perf_values <- apply(rand_y_mat, 2, function(rand_y){
-      rand_rf <- rf.cross.validation(x, rand_y, nfolds=nfolds)
-      perf <- get.reg.performance(rand_y, rand_rf$predicted, n_features)[[metric]]
-    })
-    rand_perf_values
+plot_perf_VS_rand<-function(x, y, predicted_y, prefix="train", target_field="value", nfolds=5,
+                            metric="MAE", permutation=100, n_features=NA, outdir=NULL, positive_class=NA, n_cores=1){
+  if(is.factor(y)){
+    if(!metric %in% .clf_metric_names) stop("metric should be one of: ", paste(.clf_metric_names, collapse=", "))
+    if(!is.list(predicted_y) || is.null(predicted_y$probabilities))
+      stop("For classification, predicted_y should be an rf.out.of.bag/rf.cross.validation object (or a list with 'predicted' and 'probabilities').")
+    observed <- list(predicted=predicted_y$predicted, probabilities=predicted_y$probabilities)
+  }else{
+    observed <- predicted_y
   }
-  emp_p_value <- function(perf_value, rand_perf_values){
-    k<-length(rand_perf_values)
-    p<-(sum(abs(perf_value >= rand_perf_values))+1)/(k+1)
-    p
+  perf_value<-.perf_metric(y, observed, metric, positive_class, n_features)
+  set.seed(123)
+  rand_y_list <- lapply(seq_len(permutation), function(k) sample(y, replace = FALSE))
+  shuffle_y_perf <- function(rand_y){
+    rand_rf <- .quietly(rf.cross.validation(x, rand_y, nfolds=nfolds))
+    .perf_metric(rand_y, if(is.factor(y)) rand_rf else rand_rf$predicted, metric, positive_class, n_features)
   }
-  rand_perf_values <- shuffle_y_perf(x, y, permutation = 100)
-  perf_value<-get.reg.performance(predicted_y, y, n_features)[[metric]]
-  perf_values<-data.frame(perf_value, rand_perf_values)
-  emp_p_value<-emp_p_value(perf_value, rand_perf_values)
-  # histogram
-  label = paste(metric, ": ", as.character(round(perf_value, 2)), "\np-value = ", round(emp_p_value, 2), sep="")
-  p<-ggplot(perf_values, aes(x=.data$rand_perf_values)) + geom_histogram(alpha=0.5) +
-    xlab(metric)+
-    ylab("count")+
-    geom_vline(data=perf_values, aes(xintercept = .data$perf_value)) +
-    annotate(geom="text", x=perf_value, y=Inf, label=label, color="red", vjust=2, hjust=0)+theme_bw()
+  if(n_cores > 1){
+    .register_cores(n_cores)
+    rand_perf_values <- unlist(foreach(i=seq_along(rand_y_list)) %dopar% shuffle_y_perf(rand_y_list[[i]]))
+  }else{
+    rand_perf_values <- vapply(rand_y_list, shuffle_y_perf, numeric(1))
+  }
+  emp_p_value<-.emp_p_value(perf_value, rand_perf_values, .higher_is_better(metric))
+  out <- .plot_perf_vs_rand(perf_value, rand_perf_values, emp_p_value, metric)
   if(!is.null(outdir)){
     ggsave(filename=paste(outdir, prefix, ".", target_field, ".", metric,
-                          "_vs_rand.histogram.pdf",sep=""), plot=p, height=4, width=4)
+                          "_vs_rand.histogram.pdf",sep=""), plot=out$plot, height=4, width=4)
   }
   res <- list()
   res$emp_p_value <- emp_p_value
-  res$perf_values <- perf_values
-  res$plot <- p
+  res$perf_values <- out$perf_values
+  res$plot <- out$plot
   res
 }
 
 #' @title plot_train_vs_test
-#' @description Plot the residuals of observed and predicted values from a ranger model.
+#' @description Plot the observed and predicted values of both training and testing data from a ranger model.
 #' @param train_y The numeric labels for training data.
 #' @param predicted_train_y The predicted values for training data.
 #' @param train_SampleIDs The sample ids in the train data.
@@ -195,13 +220,18 @@ plot_perf_VS_rand<-function(x, y, predicted_y, prefix="train", target_field, nfo
 #'             t(rmultinom(15, 75, c(.091,.2,.32,.18,.209))),
 #'             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
 #' y<- 1:60
+#' newx <- data.frame(rbind(t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
+#'             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
+#' newy <- 31:60
 #' rf_model<-rf.out.of.bag(x, y)
-#' plot_perf_VS_rand(y=y, predicted_y=rf_model$predicted, prefix="train",
-#' permutation=100, metric="MAE", target_field="age")
+#' predicted_newy <- predict(rf_model$rf.model, newx)$predictions
+#' plot_train_vs_test(train_y=y, predicted_train_y=rf_model$predicted,
+#'                    test_y=newy, predicted_test_y=predicted_newy,
+#'                    train_target_field="age", test_target_field="age")
 #' @author Shi Huang
 #' @export
 plot_train_vs_test<-function(train_y, predicted_train_y, test_y, predicted_test_y, train_SampleIDs=NULL, test_SampleIDs=NULL,
-                             train_prefix="train", test_prefix="test", train_target_field, test_target_field, outdir=NULL){
+                             train_prefix="train", test_prefix="test", train_target_field="value", test_target_field="value", outdir=NULL){
   train.pred<-data.frame(value=train_y,predicted_value=predicted_train_y)
   if(nrow(train.pred)==length(train_SampleIDs)){
     train.pred<-data.frame(SampleIDs=train_SampleIDs, train.pred)
@@ -217,19 +247,14 @@ plot_train_vs_test<-function(train_y, predicted_train_y, test_y, predicted_test_
   data_name<-c(rep(train_prefix,nrow(train.pred)),rep(test_prefix,nrow(test.pred)))
   pred<-data.frame(data=data_name,rbind(train.pred,test.pred))
   pred$data<-factor(pred$data,levels=c(train_prefix,test_prefix),ordered=TRUE)
-  l<-levels(pred$data); l_sorted<-sort(levels(pred$data))
-  #Mycolor <- c("#D55E00", "#0072B2")
-  #if(identical(order(l), order(l_sorted))){Mycolor=Mycolor }else{Mycolor=rev(Mycolor)}
   p<-ggplot(pred,aes(x=.data$value,y=.data$predicted_value))+
     ylab(paste("Predicted ",train_target_field,sep=""))+
     xlab(paste("Observed ",train_target_field,sep=""))+
     geom_point(aes(color=.data$data), alpha=0.1)+
-    geom_smooth(aes(color=.data$data), method="loess",span=1)+
-    #scale_color_manual(values = Mycolor)+
+    geom_smooth(aes(color=.data$data), method="loess", formula=y ~ x, span=1)+
     theme_bw() +
-    facet_wrap(~.data$data)+
+    facet_wrap(~data)+
     theme(legend.position="none")
-  #coord_flip()+
   if(!is.null(outdir)){
   ggsave(filename=paste(outdir, train_prefix,"-",test_prefix,".",test_target_field, ".train_test_ggplot.pdf",sep=""),plot=p, height=3, width=6)
   sink(paste(outdir, train_prefix,"-",test_prefix,".",test_target_field, ".train_test_results.xls",sep=""));
@@ -240,17 +265,21 @@ plot_train_vs_test<-function(train_y, predicted_train_y, test_y, predicted_test_
 
 
 #' @title plot_test_perf_VS_rand
-#' @description This outputs a histogram and a p-value showing if the performance of a real regression model
-#' significantly better than null models.
-#' @param rf_model A trained rf model object, which should be generated from /code{rf.cross.validation} or /code{rf.out.of.bag}.
-#' @param newy The data label of new data.
+#' @description This outputs a histogram and an empirical p-value showing if the performance of a trained
+#' regression or classification model on new (e.g., independent) data is significantly better than random guesses,
+#' i.e., the performance of the same predictions against permuted labels.
+#' @param rf_model A trained rf model object, which should be generated from \code{rf.cross.validation} or \code{rf.out.of.bag}.
+#' @param newy The data label of new data: numeric (regression) or a factor (classification).
 #' @param newx A data.matrix or data.frame with the new data for rf model testing.
 #' @param n_features The number of features in the training data.
 #' @param prefix The prefix for the dataset in the training or testing.
 #' @param target_field A string indicating the target field of the metadata for machine-learning analysis.
-#' @param metric The regression performance metric applied, including MAE, RMSE, MSE, R_squared, Adj_R_squared, or Separman_rho.
-#' @param permutation The permutation times for a random guess of regression performance.
+#' @param metric The performance metric applied: MAE, RMSE, MSE, MAPE, R_squared, Adj_R_squared or Spearman_rho for regression;
+#' AUROC, AUPRC, Accuracy, Kappa, F1 or Balanced_Accuracy for classification.
+#' @param permutation The permutation times for a random guess of performance.
 #' @param outdir The output directory.
+#' @param positive_class A class of newy for classification.
+#' @return A list including the empirical p value, the observed and permuted performance, and the histogram.
 #' @examples
 #' set.seed(123)
 #' x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
@@ -265,149 +294,97 @@ plot_train_vs_test<-function(train_y, predicted_train_y, test_y, predicted_test_
 #'             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
 #' newy<- 4:33
 #' rf_model<-rf.out.of.bag(x, y)
-#' p<-plot_perf_VS_rand(x=x, y=y, predicted_y=rf_model$predicted, prefix="train", nfolds=5,
-#' permutation=100, metric="MAE", target_field="age", n_features=5)
-#' p
 #' p_test<-plot_test_perf_VS_rand(rf_model, newx, newy, permutation=100,
 #'                                metric="MAE", target_field="age", n_features=5)
-#' p_test
+#' p_test$emp_p_value
 #' @author Shi Huang
 #' @export
 plot_test_perf_VS_rand<-function(rf_model, newx, newy, prefix="test", target_field="",
-                            metric="MAE", permutation=1000, n_features=NA, outdir=NULL){
-
-  shuffle_y_test_perf <- function(rf_model, newx, newy, permutation.=permutation, metric.=metric,
-                             n_features.=n_features){
-    set.seed(123)
-    rand_y_mat <-replicate(permutation, sample(newy, replace = FALSE))
-    rand_perf_values <- apply(rand_y_mat, 2, function(rand_y){
-      predicted_newy <- predict(rf_model$rf.model, newx, type="response")$predictions
-      perf <- get.reg.performance(rand_y, predicted_newy)[[metric]]
-    })
-    rand_perf_values
+                            metric="MAE", permutation=1000, n_features=NA, outdir=NULL, positive_class=NA){
+  if(is.factor(newy) || is.character(newy)){
+    if(!metric %in% .clf_metric_names) stop("metric should be one of: ", paste(.clf_metric_names, collapse=", "))
+    prediction <- .predict_clf(rf_model, newx)
+    newy <- factor(as.character(newy), levels=levels(prediction$predicted))
+    if(any(is.na(newy))) stop("newy includes classes that are absent from the training data.")
+  }else{
+    prediction <- .predict_reg(rf_model, newx)
   }
-  emp_p_value <- function(perf_value, rand_perf_values){
-    k<-length(rand_perf_values)
-    p<-(sum(abs(perf_value >= rand_perf_values))+1)/(k+1)
-    p
-  }
-  rand_perf_values <- shuffle_y_test_perf(rf_model, newx, newy)
-  predicted_newy <- predict(rf_model$rf.model, newx, type="response")$predictions
-  perf_value<-get.reg.performance(predicted_newy, newy)[[metric]]
-  perf_values<-data.frame(perf_value, rand_perf_values)
-  emp_p_value<-emp_p_value(perf_value, rand_perf_values)
-  # histogram
-  label = paste(metric, ": ", as.character(round(perf_value, 2)), "\np-value = ", round(emp_p_value, 2), sep="")
-  p<-ggplot(perf_values, aes(x=.data$rand_perf_values)) + geom_histogram(alpha=0.5) +
-    xlab(metric)+
-    ylab("count")+
-    geom_vline(data=perf_values, aes(xintercept = .data$perf_value)) +
-    annotate(geom="text", x=perf_value, y=Inf, label=label, color="red", vjust=2, hjust=0)+theme_bw()
+  perf_value<-.perf_metric(newy, prediction, metric, positive_class, n_features)
+  # the predictions are fixed, and only the labels are permuted
+  set.seed(123)
+  rand_perf_values <- vapply(seq_len(permutation), function(k)
+    .perf_metric(sample(newy, replace = FALSE), prediction, metric, positive_class, n_features), numeric(1))
+  emp_p_value<-.emp_p_value(perf_value, rand_perf_values, .higher_is_better(metric))
+  out <- .plot_perf_vs_rand(perf_value, rand_perf_values, emp_p_value, metric)
   if(!is.null(outdir)){
     ggsave(filename=paste(outdir, prefix, ".", target_field, ".", metric,
-                          "_vs_rand.histogram.pdf",sep=""), plot=p, height=4, width=4)
+                          "_vs_rand.histogram.pdf",sep=""), plot=out$plot, height=4, width=4)
   }
   res <- list()
   res$emp_p_value <- emp_p_value
-  res$perf_values <- perf_values
-  res$plot <- p
+  res$perf_values <- out$perf_values
+  res$plot <- out$plot
   res
 }
 
 
 #' @title plot_reg_feature_selection
 #' @description Plot the regression performance against the reduced number of features used in the modeling.
-#' @param x The data frame or data matrix for model training.
+#' The dashed line marks the optimal parsimonious feature set: the smallest set whose performance is within
+#' \code{tolerance} of the best performance.
+#' @param x The data frame or data matrix for model training, or the result of \code{rf_reg.rfe}.
 #' @param y The numeric values for labeling data.
 #' @param nfolds The number of folds in the cross-validation for each feature set.
 #' @param unit The unit of numeric metadata variables that can be printed in the output figure.
-#' @param rf_reg_model The rf regression model from \code{rf.out.of.bag}
+#' @param rf_reg_model An optional rf regression model from \code{rf.out.of.bag} or \code{rf.cross.validation} used to rank the features.
 #' @param metric The regression performance metric applied.
-#' This must be one of "MAE", "RMSE", "MSE", "MAPE".
+#' This must be one of "MAE", "RMSE", "MSE", "MAPE", "Spearman_rho", "R_squared".
 #' @param outdir The output directory.
+#' @param tolerance The relative tolerance for choosing the optimal parsimonious feature set.
+#' @param recursive A boolean value indicating if the feature ranking is re-computed at each step (see \code{rf_reg.rfe}).
+#' @param ntree The number of trees.
+#' @return A list including the performance table (\code{top_n_perf}), \code{best_n_features},
+#' \code{optimal_n_features}, \code{selected_features}, the models (\code{top_n_rf}), the plot and the \code{rf_reg.rfe} object.
 #' @examples
 #' set.seed(123)
-#' require("gtools")
 #' n_features <- 100
-#' prob_vec <- rdirichlet(5, sample(n_features))
+#' prob_vec <- gtools::rdirichlet(5, sample(n_features))
 #' x <- data.frame(rbind(t(rmultinom(7, 7*n_features, prob_vec[1, ])),
 #'             t(rmultinom(8, 8*n_features, prob_vec[2, ])),
 #'             t(rmultinom(15, 15*n_features, prob_vec[3, ])),
 #'             t(rmultinom(15, 15*n_features, prob_vec[4, ])),
 #'             t(rmultinom(15, 15*n_features, prob_vec[5, ]))))
 #' y<- 1:60
-#' rf_reg_model<-rf.out.of.bag(x, y)
-#' rf_reg_model<-rf.cross.validation(x, y)
+#' rf_reg_model<-rf.cross.validation(x, y, nfolds=5)
 #' fs_summ <- plot_reg_feature_selection(x, y, rf_reg_model, metric="MAE", outdir=NULL)
+#' fs_summ$plot
 #' @author Shi Huang
 #' @export
-plot_reg_feature_selection <- function(x, y, rf_reg_model, nfolds=5, metric="MAE",
-                                       unit=NA, outdir=NULL){
-  if(class(rf_reg_model)=="rf.cross.validation"){
-    rank_mat <- apply(rf_reg_model$importances, 2, function(x){rank(-x, na.last = "keep")})
-    rf_imp_rank <- rank(apply(rank_mat, 1, median), na.last = "keep")
-    }else if(class(rf_reg_model)=="rf.out.of.bag"){
-      rf_imp_rank<-rank(-(rf_reg_model$importances), na.last = "keep")
-    }else{
-      stop("The class of input rf model should be rf.out.of.bag or rf.cross.validation.")
-    }
-  max_n<-max(rf_imp_rank, na.rm = TRUE)
-  n_total_features<-ncol(x)
-  n_features<-c(2, 4, 8, 16, 32, 64, 128, 256, 512, 1024)
-  min_dist_idx <- which.min(abs(n_features-n_total_features))
-  maginal_idx <- ifelse(n_features[min_dist_idx]>n_total_features, min_dist_idx-1, min_dist_idx)
-  n_features<-n_features[1:maginal_idx]
-  top_n_perf<-matrix(NA, ncol=6, nrow=length(n_features)+1)
-  colnames(top_n_perf)<-c("n_features", "MSE", "RMSE", "MAE", "MAPE", "Spearman_rho")
-  rownames(top_n_perf)<-top_n_perf[,1]<-c(n_features, max_n)
-  top_n_rf_list <-vector(mode="list", length = length(n_features))
-  names(top_n_rf_list) <- n_features
-  for(i in 1:length(n_features)){
-    idx<-which(rf_imp_rank<=n_features[i])
-    #top_n_features<-names(rf_imp_rank[idx])
-    x_n<-x[, idx]
-    y_n<-y
-    top_n_rf_list[[i]] <- top_n_rf<-rf.cross.validation(x_n, y_n, nfolds=5, ntree=500)
-    top_n_rf_perf<-get.reg.performance(top_n_rf$predicted, y_n)
-    top_n_perf[i, 1]<-n_features[i]
-    top_n_perf[i, 2]<-top_n_rf_perf$MSE
-    top_n_perf[i, 3]<-top_n_rf_perf$RMSE
-    top_n_perf[i, 4]<-top_n_rf_perf$MAE
-    top_n_perf[i, 5]<-top_n_rf_perf$MAPE
-    top_n_perf[i, 6]<-top_n_rf_perf$Spearman_rho
+plot_reg_feature_selection <- function(x, y, rf_reg_model=NULL, nfolds=5, metric="MAE",
+                                       unit=NA, outdir=NULL, tolerance=0.01, recursive=FALSE, ntree=500){
+  if(inherits(x, "rf_reg.rfe")){
+    rfe <- x
+    if(missing(metric)) metric <- rfe$metric
+  }else{
+    rfe <- rf_reg.rfe(x, y, nfolds=nfolds, metric=metric, tolerance=tolerance, recursive=recursive,
+                      ntree=ntree, rf_model=rf_reg_model)
   }
-
-  all_rf_perf<-get.reg.performance(rf_reg_model$predicted, y)
-  top_n_perf[length(n_features)+1, ]<-as.numeric(c(max_n, all_rf_perf[c("MSE", "RMSE", "MAE", "MAPE", "Spearman_rho")]))
-  top_n_perf<-data.frame(top_n_perf)
-  if(metric=="Spearman_rho"){
-    best_idx <- which.max(top_n_perf[, metric])
-    }else{
-    best_idx <- which.min(top_n_perf[, metric])
-    }
-  best_n_features <- top_n_perf$n_features[best_idx]
-  breaks<-top_n_perf$n_features
+  top_n_perf <- rfe$top_n_perf
+  if(!metric %in% colnames(top_n_perf)) stop("metric should be one of: ", paste(colnames(top_n_perf)[-1], collapse=", "))
+  selection <- .rfe_select(top_n_perf, metric, higher_better=.higher_is_better(metric), tolerance=rfe$tolerance)
   y_label <- ifelse(is.na(unit), metric, paste(metric, " (", unit ,")", sep=""))
-  p<-ggplot(top_n_perf, aes(x=.data$n_features, y=get(metric))) +
-    xlab("# of features used")+
-    ylab(y_label)+
-    scale_x_continuous(trans = "log", breaks=breaks)+
-    geom_point() + geom_line()+
-    geom_vline(xintercept = best_n_features, linetype="dashed", color="blue")+
-    geom_text(aes(x=best_n_features, y=top_n_perf[best_idx, metric], label=best_n_features),
-              color="blue", vjust=-1)+
-    theme_bw()+
-    theme(axis.line = element_line(color="black"),
-          axis.title = element_text(size=18),
-          strip.background = element_rect(colour = "white"),
-          panel.border = element_blank())
+  p <- .plot_feature_selection(top_n_perf, metric, selection, y_label=y_label)
   if(!is.null(outdir)){
   ggsave(filename=paste(outdir,"rf__",metric,"__top_rankings.scatterplot.pdf",sep=""), plot=p, width=5, height=4)
   }
   res <- list()
   res$top_n_perf <- top_n_perf
-  res$best_n_features <- best_n_features
-  res$top_n_rf <-top_n_rf_list
+  res$best_n_features <- selection$best_n_features
+  res$optimal_n_features <- selection$optimal_n_features
+  res$selected_features <- rfe$feature_sets[[as.character(selection$optimal_n_features)]]
+  res$top_n_rf <- rfe$top_n_rf
+  res$plot <- p
+  res$rfe <- rfe
   res
 }
 
@@ -441,9 +418,7 @@ plot_reg_feature_selection <- function(x, y, rf_reg_model, nfolds=5, metric="MAE
 #' predicted_test_y<-predict(train_rf_model$rf.model, test_x)$predictions
 #' calc_rel_predicted(train_y, predicted_train_y=train_rf_model$predicted)
 #' calc_rel_predicted(train_y=train_y, predicted_train_y=train_rf_model$predicted,
-#'                    #train_SampleIDs=as.character(1:60),
 #'                    test_y=test_y, predicted_test_y=predicted_test_y,
-#'                    #test_SampleIDs=as.character(1:45),
 #'                    train_target_field="y",  test_target_field="test_y", outdir=NULL)
 #' calc_rel_predicted(train_y=train_y, predicted_train_y=train_rf_model$predicted,
 #'                    train_SampleIDs=as.character(1:60),
@@ -504,7 +479,7 @@ calc_rel_predicted<-function(train_y, predicted_train_y, train_SampleIDs=NULL,
 #' @title plot_rel_predicted
 #' @description Calculate the relative predicted values to the spline fit in the training data.
 #' @param relTrain_data The output dataframe of \code{calc_rel_predicted}.
-#' @param prefix The prefix of a train dataset.
+#' @param prefix The prefix of a train dataset, or the prefixes of both train and test datasets.
 #' @param target_field A string indicating the target field in the metadata for regression.
 #' @param outdir The output directory.
 #' @examples
@@ -522,32 +497,33 @@ calc_rel_predicted<-function(train_y, predicted_train_y, train_SampleIDs=NULL,
 #' test_y<- 1:45
 #' train_rf_model<-rf.out.of.bag(train_x, train_y)
 #' predicted_test_y<-predict(train_rf_model$rf.model, test_x)$predictions
-#' relTrain_data<-calc_rel_predicted(train_y, train_rf_model$predicted, test_y, predicted_test_y)
+#' relTrain_data<-calc_rel_predicted(train_y, train_rf_model$predicted,
+#'                                   test_y=test_y, predicted_test_y=predicted_test_y)
 #' plot_rel_predicted(relTrain_data)
+#' plot_rel_predicted(relTrain_data, prefix=c("train", "test"))
 #' @author Shi Huang
 #' @export
 plot_rel_predicted <- function(relTrain_data, prefix="train", target_field="value", outdir=NULL){
   if(length(prefix)==1){
-    relTrain_data<-subset(relTrain_data, .data$DataSet==prefix)
+    if("DataSet" %in% colnames(relTrain_data)) relTrain_data<-relTrain_data[relTrain_data$DataSet==prefix, , drop=FALSE]
     p<-ggplot(relTrain_data, aes(x=.data$y, y=.data$rel_predicted_y))+
       ylab(paste("Relative prediceted ",target_field,sep=""))+
       xlab(paste("Observed ",target_field,sep=""))+
       geom_point(alpha=0.1)+
       geom_hline(yintercept=0)+
-      #geom_smooth(method="loess",span=span)+
       theme_bw()
-    #coord_flip()+
   }else{
     p<-ggplot(relTrain_data, aes(x=.data$y, y=.data$rel_predicted_y, color=.data$DataSet))+
       ylab(paste("Relative prediceted ",target_field,sep=""))+
       xlab(paste("Observed ",target_field,sep=""))+
       geom_point(alpha=0.1)+
       geom_hline(yintercept=0)+
-      #geom_smooth(method="loess",span=span)+
       theme_bw()
     prefix=paste(prefix, collapse = "-")
   }
-  ggsave(filename=paste(outdir, prefix, ".", target_field, ".obs_vs_relative_pred.scatterplot.pdf",sep=""), plot=p, height=4, width=4)
+  if(!is.null(outdir)){
+    ggsave(filename=paste(outdir, prefix, ".", target_field, ".obs_vs_relative_pred.scatterplot.pdf",sep=""), plot=p, height=4, width=4)
+  }
   invisible(p)
 }
 
@@ -582,26 +558,22 @@ plot_rel_predicted <- function(relTrain_data, prefix="train", target_field="valu
 #' @export
 boxplot_rel_predicted_train_vs_test<-function(relTrain_data, train_target_field="value",
                                               train_prefix="train", test_prefix="test", outdir=NULL){
-    NoTestDataset<-all(grepl("DataSet", colnames(relTrain_data))==FALSE)
+    NoTestDataset<-!"DataSet" %in% colnames(relTrain_data)
     if(NoTestDataset) stop("Test dataset should be included for residuals comparison between train and test datasets!")
     p_w<-formatC(stats::wilcox.test(rel_predicted_y~DataSet, data = relTrain_data)$p.value,digits=4,format="g")
-    # l<-levels(relTrain_data$DataSet); l_sorted<-sort(levels(relTrain_data$DataSet))
-    # Mycolor <- rep(c("#D55E00", "#0072B2"), length.out=length(l))
-    # if(identical(order(l), order(l_sorted))){
-    #   Mycolor=Mycolor; l_ordered=l
-    # }else{Mycolor=rev(Mycolor); l_ordered=l_sorted}
     p<-ggplot(relTrain_data, aes(x=.data$DataSet, y=.data$rel_predicted_y)) +
       geom_violin(aes(color=.data$DataSet))+
       geom_boxplot(outlier.shape = NA, width=0.4)+
-      geom_jitter(position=position_jitter(width=0.2),alpha=0.1) + # aes(color=DataSet),
+      geom_jitter(position=position_jitter(width=0.2),alpha=0.1) +
       geom_hline(yintercept=0)+
       theme_bw()+
       ggtitle(paste("Wilcoxon Rank Sum Test:\n P=", p_w, sep=""))+
       xlab("Data sets") +
       ylab(paste("Relative predicted", train_target_field))+
       theme(legend.position="none")
-    # p<-p+scale_color_manual(values = Mycolor, labels=l_ordered)
-    ggsave(filename= paste(outdir, train_prefix,"-",test_prefix, ".Relative_",train_target_field,".boxplot.pdf",sep=""), width=3, height=4)
+    if(!is.null(outdir)){
+      ggsave(filename= paste(outdir, train_prefix,"-",test_prefix, ".Relative_",train_target_field,".boxplot.pdf",sep=""),
+             plot=p, width=3, height=4)
+    }
     invisible(p)
 }
-

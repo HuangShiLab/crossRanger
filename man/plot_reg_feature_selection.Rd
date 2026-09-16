@@ -7,46 +7,60 @@
 plot_reg_feature_selection(
   x,
   y,
-  rf_reg_model,
+  rf_reg_model = NULL,
   nfolds = 5,
   metric = "MAE",
   unit = NA,
-  outdir = NULL
+  outdir = NULL,
+  tolerance = 0.01,
+  recursive = FALSE,
+  ntree = 500
 )
 }
 \arguments{
-\item{x}{The data frame or data matrix for model training.}
+\item{x}{The data frame or data matrix for model training, or the result of \code{rf_reg.rfe}.}
 
 \item{y}{The numeric values for labeling data.}
 
-\item{rf_reg_model}{The rf regression model from \code{rf.out.of.bag}}
+\item{rf_reg_model}{An optional rf regression model from \code{rf.out.of.bag} or \code{rf.cross.validation} used to rank the features.}
 
 \item{nfolds}{The number of folds in the cross-validation for each feature set.}
 
 \item{metric}{The regression performance metric applied.
-This must be one of "MAE", "RMSE", "MSE", "MAPE".}
+This must be one of "MAE", "RMSE", "MSE", "MAPE", "Spearman_rho", "R_squared".}
 
 \item{unit}{The unit of numeric metadata variables that can be printed in the output figure.}
 
 \item{outdir}{The output directory.}
+
+\item{tolerance}{The relative tolerance for choosing the optimal parsimonious feature set.}
+
+\item{recursive}{A boolean value indicating if the feature ranking is re-computed at each step (see \code{rf_reg.rfe}).}
+
+\item{ntree}{The number of trees.}
+}
+\value{
+A list including the performance table (\code{top_n_perf}), \code{best_n_features},
+\code{optimal_n_features}, \code{selected_features}, the models (\code{top_n_rf}), the plot and the \code{rf_reg.rfe} object.
 }
 \description{
 Plot the regression performance against the reduced number of features used in the modeling.
+The dashed line marks the optimal parsimonious feature set: the smallest set whose performance is within
+\code{tolerance} of the best performance.
 }
 \examples{
 set.seed(123)
-require("gtools")
 n_features <- 100
-prob_vec <- rdirichlet(5, sample(n_features))
+prob_vec <- gtools::rdirichlet(5, sample(n_features))
 x <- data.frame(rbind(t(rmultinom(7, 7*n_features, prob_vec[1, ])),
             t(rmultinom(8, 8*n_features, prob_vec[2, ])),
             t(rmultinom(15, 15*n_features, prob_vec[3, ])),
             t(rmultinom(15, 15*n_features, prob_vec[4, ])),
             t(rmultinom(15, 15*n_features, prob_vec[5, ]))))
 y<- 1:60
-rf_reg_model<-rf.out.of.bag(x, y)
-rf_reg_model<-rf.cross.validation(x, y)
+rf_reg_model<-rf.cross.validation(x, y, nfolds=5)
 fs_summ <- plot_reg_feature_selection(x, y, rf_reg_model, metric="MAE", outdir=NULL)
+fs_summ$plot
 }
 \author{
 Shi Huang

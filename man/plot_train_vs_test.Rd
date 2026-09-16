@@ -13,8 +13,8 @@ plot_train_vs_test(
   test_SampleIDs = NULL,
   train_prefix = "train",
   test_prefix = "test",
-  train_target_field,
-  test_target_field,
+  train_target_field = "value",
+  test_target_field = "value",
   outdir = NULL
 )
 }
@@ -42,7 +42,7 @@ plot_train_vs_test(
 \item{outdir}{The output directory.}
 }
 \description{
-Plot the residuals of observed and predicted values from a ranger model.
+Plot the observed and predicted values of both training and testing data from a ranger model.
 }
 \examples{
 set.seed(123)
@@ -52,9 +52,14 @@ x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
             t(rmultinom(15, 75, c(.091,.2,.32,.18,.209))),
             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
 y<- 1:60
+newx <- data.frame(rbind(t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
+            t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
+newy <- 31:60
 rf_model<-rf.out.of.bag(x, y)
-plot_perf_VS_rand(y=y, predicted_y=rf_model$predicted, prefix="train",
-permutation=100, metric="MAE", target_field="age")
+predicted_newy <- predict(rf_model$rf.model, newx)$predictions
+plot_train_vs_test(train_y=y, predicted_train_y=rf_model$predicted,
+                   test_y=newy, predicted_test_y=predicted_newy,
+                   train_target_field="age", test_target_field="age")
 }
 \author{
 Shi Huang

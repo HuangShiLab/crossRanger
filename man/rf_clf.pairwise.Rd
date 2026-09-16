@@ -24,10 +24,9 @@ A summary table containing the performance of Random Forest classification model
 Perform pairwise rf classfication for a data matrix between all pairs of group levels
 }
 \examples{
-df <- t(rmultinom(16,160,c(.001,.6,.2,.3,.299))) + 0.65
-f<-factor(c(rep("A", 4), rep("B", 4), rep("C", 4), rep("D", 4)))
-f0<-factor(c(rep("A", 8), rep("B", 8)))
-rf_clf.pairwise(df, f)
+df <- data.frame(t(rmultinom(48, 160, c(.001,.6,.2,.3,.299))) + 0.65)
+f<-factor(rep(c("A", "B", "C", "D"), each=12))
+rf_clf.pairwise(df, f, ntree=500)
 }
 \seealso{
 ranger

@@ -2,7 +2,7 @@
 % Please edit documentation in R/ranger_clf_plot.R
 \name{plot_clf_ROC}
 \alias{plot_clf_ROC}
-\title{plot_ROC}
+\title{plot_clf_ROC}
 \usage{
 plot_clf_ROC(
   y,
@@ -13,7 +13,8 @@ plot_clf_ROC(
 )
 }
 \arguments{
-\item{y}{A factor of classes to be used as the true results}
+\item{y}{A factor of classes to be used as the true results, or an object of class
+\code{rf_clf.by_datasets} or \code{rf_clf.comps} to plot the ROC curves of all within-study models in one figure.}
 
 \item{rf_clf_model}{A list object of a random forest model.}
 
@@ -24,8 +25,12 @@ If there are only two factor levels, the first level will be used as the "positi
 
 \item{outdir}{The output directory.}
 }
+\value{
+A \code{PRROC} object (invisibly), or a ggplot object for multiple datasets.
+}
 \description{
-plot_ROC
+ROC curve of a classification model, or of all within-study models
+when an \code{rf_clf.by_datasets}/\code{rf_clf.comps} object is given.
 }
 \examples{
 set.seed(123)
@@ -34,26 +39,19 @@ x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
             t(rmultinom(15, 75, c(.091,.2,.32,.18,.209))),
             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
-x0 <- data.frame(rbind(t(rmultinom(7, 75, c(.011,.3,.22,.18,.289))),
-            t(rmultinom(8, 75, c(.011,.3,.22,.18,.289))),
-            t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
-            t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
-            t(rmultinom(15, 75, c(.011,.3,.22,.18,.289)))))
 y<-factor(c(rep("A", 20), rep("B", 20), rep("C", 20)))
-y0<-factor(c(rep("A", 5), rep("B", 55)))
 rf_clf_model<-rf.out.of.bag(x, y)
-plot_clf_ROC(y, rf_clf_model, positive_class="A", outdir='./A')
-plot_clf_ROC(y, rf_clf_model, positive_class="B", outdir='./B')
-plot_clf_PRC(y, rf_clf_model, positive_class="A", outdir='./A')
-plot_clf_PRC(y, rf_clf_model, positive_class="B", outdir='./B')
-rf_clf_model0<-rf.out.of.bag(x0, y0)
-plot_clf_ROC(y0, rf_clf_model0, positive_class="A", outdir='./A')
-plot_clf_ROC(y0, rf_clf_model0, positive_class="B", outdir='./B')
-plot_clf_PRC(y0, rf_clf_model0, positive_class="A", outdir='./A')
-plot_clf_PRC(y0, rf_clf_model0, positive_class="B", outdir='./B')
-pred_df<-data.frame(y=y0, prediction=rf_clf_model0$probabilities[, positive_class])
-ggplot(pred_df, aes(prediction, fill = y)) +
-geom_histogram(alpha = 0.5, position = 'identity')
+plot_clf_ROC(y, rf_clf_model, positive_class="A")
+plot_clf_ROC(y, rf_clf_model, positive_class="B")
+pred_df<-data.frame(y=y, prediction=rf_clf_model$probabilities[, "A"])
+ggplot2::ggplot(pred_df, ggplot2::aes(prediction, fill = y)) +
+ggplot2::geom_histogram(alpha = 0.5, position = 'identity', bins = 30)
+# ROC curves of all within-study models
+metadata <- data.frame(study=factor(rep(c("S1", "S2"), each=30)),
+                       disease=factor(rep(rep(c("Case", "Control"), each=15), 2)))
+res <- rf_clf.by_datasets(x, metadata, s_category="study", c_category="disease",
+                          positive_class="Case", n_cores=2)
+plot_clf_ROC(res)
 }
 \author{
 Shi Huang

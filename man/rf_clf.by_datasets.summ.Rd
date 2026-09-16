@@ -17,11 +17,16 @@ rf_clf.by_datasets.summ(
   p_cutoff = 0.05,
   p.adj.method = "bonferroni",
   q_cutoff = 0.05,
-  outdir = NULL
+  outdir = NULL,
+  clr_transform = TRUE,
+  cv_type = "stratified",
+  g_category = NULL,
+  n_cores = NULL,
+  report_format = NULL
 )
 }
 \arguments{
-\item{df}{Training data: a data.frame.}
+\item{df}{Training data: a data.frame, or a named list of data.frames.}
 
 \item{metadata}{A metadata with at least two categorical variables.}
 
@@ -45,7 +50,18 @@ rf_clf.by_datasets.summ(
 
 \item{q_cutoff}{The cutoff of q values for features, the default value is 0.05.}
 
-\item{outdir}{The output directory, the default is "./".}
+\item{outdir}{The output directory. If NULL, no file is written.}
+
+\item{clr_transform}{A boolean value indicating if the clr-transformation applied.}
+
+\item{cv_type}{The cross-validation strategy: "stratified", "group" or "logo" (see \code{rf_clf.by_datasets}).}
+
+\item{g_category}{The grouping column in metadata for group k-fold or leave-one-group-out CV.}
+
+\item{n_cores}{The number of cores used for parallel computation.}
+
+\item{report_format}{An optional R Markdown output format ("html_document", "pdf_document" or "word_document").
+If provided, a report is rendered by \code{crossRanger_report} into \code{outdir}.}
 }
 \value{
 A list includes a summary of rf models in the sub datasets,
@@ -54,8 +70,19 @@ all important statistics for each of features, and plots.
 \description{
 A integrated pipeline for \code{rf_clf.by_datasets}. It runs standard random forests with oob estimation for classification of
 c_category in each the sub-datasets splited by the s_category. The output includes a summary of rf models in the sub datasets
-and all important statistics for each of features.
+and all important statistics for each of features, and optionally an R Markdown report.
+}
+\examples{
+df <- data.frame(rbind(t(rmultinom(7, 75, c(.21,.6,.12,.38,.099))),
+            t(rmultinom(8, 75, c(.001,.6,.42,.58,.299))),
+            t(rmultinom(15, 75, c(.011,.6,.22,.28,.289))),
+            t(rmultinom(15, 75, c(.091,.6,.32,.18,.209))),
+            t(rmultinom(15, 75, c(.001,.6,.42,.58,.299)))))
+metadata<-data.frame(f_s=factor(c(rep("A", 15), rep("B", 15), rep("A", 15), rep("B", 15))),
+                     f_c=factor(c(rep("C", 30), rep("D", 30))))
+res <- rf_clf.by_datasets.summ(df, metadata, s_category="f_c", c_category="f_s", nfolds=3)
+res$perf_summ
 }
 \seealso{
-ranger rf_clf.by_datasets
+ranger rf_clf.by_datasets crossRanger_report
 }

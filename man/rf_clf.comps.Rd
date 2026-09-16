@@ -13,7 +13,10 @@ rf_clf.comps(
   rf_imp_values = FALSE,
   ntree = 500,
   p.adj.method = "bonferroni",
-  q_cutoff = 0.05
+  q_cutoff = 0.05,
+  nfolds = 1,
+  n_cores = NULL,
+  ...
 )
 }
 \arguments{
@@ -34,9 +37,15 @@ rf_clf.comps(
 \item{p.adj.method}{The p-value correction method, default is "bonferroni".}
 
 \item{q_cutoff}{The cutoff of q values for features, the default value is 0.05.}
+
+\item{nfolds}{The number of folds in the cross validation. If 1, out-of-bag estimation is used.}
+
+\item{n_cores}{The number of cores used for parallel computation. By default, all but four cores.}
+
+\item{...}{Other parameters applicable to \code{ranger}.}
 }
 \value{
-...
+An object of class \code{rf_clf.comps}.
 }
 \description{
 It runs standard random forests with oob estimation for classification of
@@ -45,7 +54,6 @@ The output includes a list of rf models for the sub datasets
 and all important statistics for each of features.
 }
 \examples{
-df0 <- data.frame(t(rmultinom(60, 300,c(.001,.6,.2,.3,.299))))
 df <- data.frame(rbind(t(rmultinom(7, 75, c(.21,.6,.12,.38,.099))),
             t(rmultinom(8, 75, c(.001,.6,.42,.58,.299))),
             t(rmultinom(15, 75, c(.011,.6,.22,.28,.289))),
@@ -55,7 +63,7 @@ f=factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15)))
 comp_group="A"
 comps_res<-rf_clf.comps(df, f, comp_group, verbose=FALSE, ntree=500,
                         p.adj.method = "bonferroni", q_cutoff=0.05)
-comps_res
+comps_res$perf_summ
 }
 \seealso{
 ranger

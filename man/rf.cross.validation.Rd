@@ -12,6 +12,7 @@ rf.cross.validation(
   verbose = FALSE,
   sparse = FALSE,
   imp_pvalues = FALSE,
+  groups = NULL,
   ...
 )
 }
@@ -31,6 +32,9 @@ or nfolds==-1, uses leave-one-out cross-validation. If nfolds was a factor, it m
 
 \item{imp_pvalues}{If compute both importance score and pvalue for each feature.}
 
+\item{groups}{An optional vector indicating the group (e.g., subject ID) of each sample.
+If provided (and nfolds is a number), group k-fold cross-validation is performed using \code{group.folds}.}
+
 \item{...}{Other parameters applicable to `ranger`.}
 }
 \value{
@@ -41,7 +45,6 @@ It runs standard random forests with n-folds cross-validation error estimation f
 }
 \examples{
 
-x0 <- data.frame(t(rmultinom(16,160,c(.001,.5,.3,.3,.299))) + 0.65)
 x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
             t(rmultinom(8, 75, c(.201,.4,.12,.18,.099))),
             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
@@ -50,15 +53,21 @@ x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
 s<-factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15)))
 y<-factor(rep(c("Y", "N"), 30))
 y0<-factor(c(rep("A", 10), rep("B", 30), rep("C", 5), rep("D", 15)))
-system.time(rf.cross.validation(x, y, imp_pvalues=FALSE))
-system.time(rf.cross.validation(x, y, imp_pvalues=TRUE))
+rf.cross.validation(x, y, imp_pvalues=FALSE)
 rf.cross.validation(x, y0, imp_pvalues=FALSE)
 y_n<- 1:60
 rf.cross.validation(x, y_n, nfolds=5, imp_pvalues=FALSE)
+# group k-fold cv: samples from the same subject are never split across folds
+subject <- factor(rep(1:20, each=3))
+rf.cross.validation(x, y, nfolds=5, groups=subject)
+\donttest{
+# the permutation-based importance p values (Altmann's method) take much longer
+rf.cross.validation(x, y, imp_pvalues=TRUE)
 rf.cross.validation(x, y_n, nfolds=5, imp_pvalues=TRUE)
 # when nfolds is a factor, it actually run a leave-one-group-out cv
 rf.cross.validation(x, y, nfolds=s, imp_pvalues=TRUE)
 rf.cross.validation(x, y_n, nfolds=s, imp_pvalues=FALSE)
+}
 }
 \seealso{
 ranger

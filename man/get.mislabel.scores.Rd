@@ -24,7 +24,6 @@ x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
             t(rmultinom(15, 75, c(.091,.2,.32,.18,.209))),
             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
 y<-factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15)))
-y<- 1:60
 rf_model<-rf.out.of.bag(x, y)
 get.mislabel.scores(rf_model$y, rf_model$probabilities)
 }

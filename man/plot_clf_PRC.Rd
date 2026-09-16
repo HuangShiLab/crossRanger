@@ -2,7 +2,7 @@
 % Please edit documentation in R/ranger_clf_plot.R
 \name{plot_clf_PRC}
 \alias{plot_clf_PRC}
-\title{plot_PRC}
+\title{plot_clf_PRC}
 \usage{
 plot_clf_PRC(
   y,
@@ -13,7 +13,8 @@ plot_clf_PRC(
 )
 }
 \arguments{
-\item{y}{A factor of classes to be used as the true results}
+\item{y}{A factor of classes to be used as the true results, or an object of class
+\code{rf_clf.by_datasets} or \code{rf_clf.comps} to plot the curves of all within-study models in one figure.}
 
 \item{rf_clf_model}{A list object of a random forest model.}
 
@@ -24,8 +25,12 @@ If there are only two factor levels, the first level will be used as the "positi
 
 \item{outdir}{The output directory.}
 }
+\value{
+A \code{PRROC} object (invisibly), or a ggplot object for multiple datasets.
+}
 \description{
-plot_PRC
+Precision-recall curve of a classification model, or of all within-study models
+when an \code{rf_clf.by_datasets}/\code{rf_clf.comps} object is given.
 }
 \examples{
 set.seed(123)
@@ -42,11 +47,10 @@ x0 <- data.frame(rbind(t(rmultinom(7, 75, c(.011,.3,.22,.18,.289))),
 y<-factor(c(rep("A", 30), rep("B", 30)))
 y0<-factor(c(rep("A", 5), rep("B", 55)))
 rf_clf_model<-rf.out.of.bag(x, y)
-plot_clf_PRC(y, rf_clf_model, positive_class="A", outdir='./A')
-plot_clf_PRC(y, rf_clf_model, positive_class="B", outdir='./B')
+plot_clf_PRC(y, rf_clf_model, positive_class="A")
+plot_clf_PRC(y, rf_clf_model, positive_class="B")
 rf_clf_model0<-rf.out.of.bag(x0, y0)
-plot_clf_PRC(y0, rf_clf_model0, positive_class="A", outdir='./A')
-plot_clf_PRC(y0, rf_clf_model0, positive_class="B", outdir='./B')
+plot_clf_PRC(y0, rf_clf_model0, positive_class="A")
 }
 \author{
 Shi Huang

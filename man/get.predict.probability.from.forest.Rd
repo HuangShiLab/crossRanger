@@ -7,7 +7,7 @@
 get.predict.probability.from.forest(model, newx)
 }
 \arguments{
-\item{model}{A object of class \code{rf.out.of.bag} with elements.}
+\item{model}{A \code{ranger} classification model.}
 
 \item{newx}{The external test data.}
 }

@@ -21,10 +21,11 @@ id_non_spcf_markers(
 
 \item{p.adj.method}{The p-value correction method, default is "bonferroni".}
 
-\item{outdir}{The outputh directory, default is "./".}
+\item{outdir}{The outputh directory. If NULL, no file is written.}
 }
 \value{
-...
+A list including the fraction and number of all-shared, non-specific and specific markers in each dataset,
+the feature table annotated with the marker specificity, and plots.
 }
 \description{
 Non-specific features across datasets (at least present in two of datasets): Last update: 20190130
@@ -34,8 +35,6 @@ df <- data.frame(rbind(t(rmultinom(15, 75, c(.21,.6,.12,.38,.099))),
             t(rmultinom(15, 75, c(.011,.6,.22,.28,.289))),
             t(rmultinom(15, 75, c(.091,.6,.32,.18,.209))),
             t(rmultinom(15, 75, c(.001,.6,.42,.58,.299)))))
-# A dataset with no feature significantly changed in all sub-datasets!
-df0 <- data.frame(t(rmultinom(60, 300,c(.001,.6,.2,.3,.299))))
 f=factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15)))
 comp_group="A"
 res <-rf_clf.comps.summ(df, f, comp_group, verbose=FALSE, ntree=500,

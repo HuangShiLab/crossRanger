@@ -7,39 +7,52 @@
 rf_reg.by_datasets(
   df,
   metadata,
-  s_category,
+  s_category = NULL,
   c_category,
   nfolds = 5,
   rf_imp_pvalues = FALSE,
   verbose = FALSE,
-  ntree = 500
+  ntree = 500,
+  cv_type = c("stratified", "group", "logo"),
+  g_category = NULL,
+  n_cores = NULL,
+  ...
 )
 }
 \arguments{
-\item{df}{Training data: a data.frame.}
+\item{df}{Training data: a data.frame, or a named list of data.frames (e.g., one feature table per study).}
 
-\item{metadata}{Sample metadata with at least two columns.}
+\item{metadata}{Sample metadata with at least two columns: a data.frame, or a list of data.frames in the same order as the list of feature tables.}
 
-\item{s_category}{A string indicates the category in the sample metadata: a ‘factor’ defines the sample grouping for data spliting.}
+\item{s_category}{A string indicates the category in the sample metadata: a ‘factor’ defines the sample grouping for data spliting.
+If NULL and \code{df} is a list, the datasets are defined by the list names.}
 
-\item{c_category}{A indicates the category in the sample metadata: a 'factor' used as sample label for rf classification in each of splited datasets.}
+\item{c_category}{A string indicates the numeric variable in the sample metadata for rf regression in each of splited datasets.}
 
-\item{nfolds}{The number of folds in the cross validation.}
+\item{nfolds}{The number of folds in the cross validation. If 1, out-of-bag estimation is used.}
 
 \item{rf_imp_pvalues}{A boolean value indicate if compute both importance score and pvalue for each feature.}
 
 \item{verbose}{Show computation status and estimated runtime.}
 
 \item{ntree}{The number of trees.}
+
+\item{cv_type}{The cross-validation strategy within each dataset: "stratified", "group" or "logo".}
+
+\item{g_category}{A string indicating the grouping column in metadata for group k-fold or leave-one-group-out CV.}
+
+\item{n_cores}{The number of cores used for parallel computation. By default, all but four cores.}
+
+\item{...}{Other parameters applicable to \code{ranger}.}
 }
 \value{
-...
+An object of class \code{rf_reg.by_datasets}.
+The performance metrics of cross-validation are computed from the pooled predictions of all folds.
 }
 \description{
-It runs standard random forests with oob estimation for regression of
-\code{c_category} in each the sub-datasets splited by the \code{s_category},
-and apply the model to all the other datasets. The output includes
-accuracy, auc and Kappa statistics.
+It runs standard random forests with oob estimation or cross-validation for regression of
+\code{c_category} in each the sub-datasets splited by the \code{s_category}.
+The output includes the rf models, predicted values and a performance summary (MSE, RMSE, MAE, MAPE, R squared etc.).
 }
 \examples{
 df <- data.frame(rbind(t(rmultinom(14, 14*5, c(.21,.6,.12,.38,.099))),
@@ -47,7 +60,6 @@ df <- data.frame(rbind(t(rmultinom(14, 14*5, c(.21,.6,.12,.38,.099))),
             t(rmultinom(30, 30*5, c(.011,.6,.22,.28,.289))),
             t(rmultinom(30, 30*5, c(.091,.6,.32,.18,.209))),
             t(rmultinom(30, 30*5, c(.001,.6,.42,.58,.299)))))
-df0 <- data.frame(t(rmultinom(120, 600,c(.001,.6,.2,.3,.299))))
 metadata<-data.frame(f_s=factor(c(rep("A", 60), rep("B", 60))),
                      f_s1=factor(c(rep(TRUE, 60), rep(FALSE, 60))),
                      f_c=factor(c(rep("C", 30), rep("H", 30), rep("D", 30), rep("P", 30))),
@@ -55,10 +67,10 @@ metadata<-data.frame(f_s=factor(c(rep("A", 60), rep("B", 60))),
                      )
 
 reg_res<-rf_reg.by_datasets(df, metadata, nfolds=5, s_category='f_s', c_category='age')
-reg_res
+reg_res$perf_summ
 }
 \seealso{
-ranger
+ranger rf_reg.cross_appl rf_reg.lodo
 }
 \author{
 Shi Huang

@@ -6,16 +6,17 @@
 \usage{
 plot_cross_appl(
   cross_appl_res,
-  metric = "MAE",
+  metric = NULL,
   outdir = NULL,
   plot_width = 8,
   plot_height = 7
 )
 }
 \arguments{
-\item{cross_appl_res}{The output object from \code{rf_clf.cross_appl} or \code{rf_reg.cross_appl}.}
+\item{cross_appl_res}{The output object from \code{rf_clf.cross_appl}, \code{rf_reg.cross_appl},
+\code{rf_clf.lodo} or \code{rf_reg.lodo}.}
 
-\item{metric}{The classification performance metric applied.}
+\item{metric}{The performance metric applied. By default, "AUROC" for classification and "MAE" for regression.}
 
 \item{outdir}{The outputh directory, default is NULL.}
 
@@ -27,7 +28,8 @@ plot_cross_appl(
 A heat map showing ML performance in self-validation and cross-applications.
 }
 \description{
-The heatmap indicating ML performance (e.g., MAE) in the self-validation and cross-applications.
+The heatmap indicating ML performance (e.g., AUROC or MAE) in the self-validation and cross-applications.
+The datasets are shown in their original order (e.g., the order of timepoints), which reveals temporal transition patterns.
 }
 \examples{
 df <- data.frame(rbind(t(rmultinom(14, 14*5, c(.21,.6,.12,.38,.099))),
@@ -35,7 +37,6 @@ df <- data.frame(rbind(t(rmultinom(14, 14*5, c(.21,.6,.12,.38,.099))),
             t(rmultinom(30, 30*5, c(.011,.6,.22,.28,.289))),
             t(rmultinom(30, 30*5, c(.091,.6,.32,.18,.209))),
             t(rmultinom(30, 30*5, c(.001,.6,.42,.58,.299)))))
-df0 <- data.frame(t(rmultinom(120, 600,c(.001,.6,.2,.3,.299))))
 metadata<-data.frame(f_s=factor(rep(c("A", "B"), 60)),
                      f_s1=factor(c(rep(TRUE, 60), rep(FALSE, 60))),
                      f_c=factor(c(rep("C", 30), rep("H", 30), rep("D", 30), rep("P", 30))),
@@ -47,7 +48,7 @@ clf_res<-rf_clf.by_datasets(df, metadata, nfolds=5, s_category='f_c', c_category
 clf_cross_appl_res <- rf_clf.cross_appl(clf_res$rf_model_list,
                                         x_list=clf_res$x_list,
                                         y_list=clf_res$y_list)
-plot_cross_appl(clf_cross_appl_res, metric="AUROC")
+plot_cross_appl(clf_cross_appl_res)
 
 reg_res<-rf_reg.by_datasets(df, metadata, nfolds=5, s_category='f_c', c_category='age')
 reg_cross_appl_res <- rf_reg.cross_appl(reg_res,

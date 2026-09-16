@@ -36,8 +36,7 @@ x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
 y<-factor(c(rep("A", 30), rep("C", 30)))
 rf_clf_model<-rf.out.of.bag(x, y)
-positive_class="A"
-plot_clf_pROC(y, rf_clf_model, outdir='./')
+plot_clf_pROC(y, rf_clf_model, positive_class="A", outdir=paste0(tempdir(), "/"))
 }
 \author{
 Shi Huang

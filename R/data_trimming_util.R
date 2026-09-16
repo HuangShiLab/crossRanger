@@ -1,27 +1,13 @@
-#--------------------------------------------------
-p <- c("reshape2", "ade4", "vegan")
-usePackage <- function(p) {
-  if (!is.element(p, installed.packages()[,1]))
-    install.packages(p, dep = TRUE, repos = "http://cran.us.r-project.org")
-  suppressWarnings(suppressMessages(invisible(require(p, character.only = TRUE))))
-}
-invisible(lapply(p, usePackage))
+#' @importFrom graphics hist
 
 #' @title check_metadata
+#' @description Summarize the completeness and the data type (numeric or categorical) of each metadata variable.
 #' @param metadata A dataframe with > two columns corresponds to samples (rownames) in the biological data.
 #' @param more_missing_values A optional string(s) can be added to define the missing values.
+#' @param unique_rate_thres The minimum ratio of unique values to non-missing values for an integer variable to be treated as numeric rather than categorical.
+#' @return A data.frame summarizing each of metadata variables.
 #' @examples
 #' set.seed(123)
-#' x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
-#'             t(rmultinom(8, 75, c(.201,.4,.12,.18,.099))),
-#'             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
-#'             t(rmultinom(15, 75, c(.091,.2,.32,.18,.209))),
-#'             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
-#' x0 <- data.frame(rbind(t(rmultinom(7, 75, c(.011,.3,.22,.18,.289))),
-#'             t(rmultinom(8, 75, c(.011,.3,.22,.18,.289))),
-#'             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
-#'             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),
-#'             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289)))))
 #' a<-factor(c(rep("A", 29), NA, rep("B", 29), NA))
 #' b<-factor(c(rep("A", 27), NA, "Not applicable", "Missing:not collected", rep("B", 28), NA, NA))
 #' c<-factor(c(rep("A", 20), rep("B", 20), rep("C", 20)))
@@ -36,20 +22,16 @@ invisible(lapply(p, usePackage))
 #' @author Shi Huang
 #' @export
 check_metadata <- function(metadata, more_missing_values=NULL, unique_rate_thres=0.2){
-  if(is.null(more_missing_values)){
-    missing_values<-c("not applicable", "Not applicable", "Missing:not collected",
-                      "Not provided", "missing: not provided", "unknown",
-                      "not provided", "not collected", "NA", NA, "")
-  }
+  missing_values<-c("not applicable", "Not applicable", "Missing:not collected",
+                    "Not provided", "missing: not provided", "unknown",
+                    "not provided", "not collected", "NA", NA, "", more_missing_values)
 
-  check_integers <- function(vector, all=TRUE){
+  check_integers <- function(vector){
     checker <- grepl("^[0-9]+$", as.character(vector), perl = T)
     total_len <- length(vector)
     n_integers <- sum(checker)
     n_non_integers <- total_len - n_integers
-    #cat("Number of integers: ", n_integers, "\n")
-    #cat("Number of non-integers: ", n_non_integers, "\n")
-    if(all) if_all_integers <- all(checker) ## if any TRUE in the checker
+    if_all_integers <- all(checker)
     out <- list(if_all_integers=if_all_integers,
                 n_integers=n_integers,
                 n_non_integers=n_non_integers)
@@ -61,8 +43,6 @@ check_metadata <- function(metadata, more_missing_values=NULL, unique_rate_thres
     total_len <- length(vector)
     n_characters <- sum(checker)
     n_non_characters <- total_len - n_characters
-    #cat("Number of characters: ", n_characters, "\n")
-    #cat("Number of non-characters: ", n_non_characters, "\n")
     if_character_existed <- any(checker) ## if any TRUE in the checker
 
     out <- list(if_character_existed=if_character_existed,
@@ -76,10 +56,7 @@ check_metadata <- function(metadata, more_missing_values=NULL, unique_rate_thres
     total_len <- length(vector)
     n_numeric <- sum(checker[!is.na(checker)]) # if any NA values it means a string appear among the numeric values.
     n_non_numeric <- total_len - n_numeric
-    #cat("Number of numeric: ", n_numeric, "\n")
-    #cat("Number of non-numeric: ", n_non_numeric, "\n")
     if_numeric_existed <- any(checker[!is.na(checker)])
-    ## if any TRUE in the checker
     out <- list(if_numeric_existed=if_numeric_existed,
                 n_numeric=n_numeric,
                 n_non_numeric=n_non_numeric)
@@ -92,14 +69,13 @@ check_metadata <- function(metadata, more_missing_values=NULL, unique_rate_thres
   n_real_values <- sapply(metadata, function(x) sum(!x %in% missing_values))
   completeness <- n_real_values/nrow(metadata)
   unique_rate <- ifelse(n_real_values==0, 0, n_unique_values/n_real_values)
-  #n_unique_real_values <- sapply(metadata, function(x) nlevels(as.factor(x[!x %in% missing_values])))
   if_character_existed <- sapply(metadata, function(x) check_characters(x[!x %in% missing_values])[[1]])
   n_characters <- sapply(metadata, function(x) check_characters(x[!x %in% missing_values])[[2]])
   if_all_integers <- sapply(metadata, function(x) check_integers(x[!x %in% missing_values])[[1]])
   n_integers <- sapply(metadata, function(x) check_integers(x[!x %in% missing_values])[[2]])
   if_numeric_existed <- sapply(metadata, function(x) check_numeric(x[!x %in% missing_values])[[1]])
   n_numeric <- sapply(metadata, function(x) check_numeric(x[!x %in% missing_values])[[2]])
-  all_values_identical <- apply(metadata, 2, function(x) length(unique(x))==1)
+  all_values_identical <- sapply(metadata, function(x) length(unique(x))==1)
   numeric_var <- if_numeric_existed | (if_all_integers & unique_rate >= unique_rate_thres)
   categorical_var <- if_character_existed | (if_all_integers & unique_rate < unique_rate_thres)
   metadata_summ<-data.frame(metadata=colnames(metadata),
@@ -124,20 +100,22 @@ check_metadata <- function(metadata, more_missing_values=NULL, unique_rate_thres
 }
 
 normalize_NA_in_metadata<-function(md){
-  apply(md, 1, function(x) {
-   idx <- which(x=="not provided" | x=="Not provided" | x=="Not Provided"
-          | x=="not applicable" | x=="Not applicable"
-          | x=="Missing:not collected"
-          | x=="NA" | x=="na" | x=="Na"
-          | x=="none" | x=="None" | x=="NONE")
-   x[idx]<-NA
+  na_strings <- c("not provided", "Not provided", "Not Provided",
+                  "not applicable", "Not applicable",
+                  "Missing:not collected",
+                  "NA", "na", "Na",
+                  "none", "None", "NONE")
+  md[] <- lapply(md, function(x) {
+    x[x %in% na_strings] <- NA
+    if(is.factor(x)) x <- droplevels(x)
+    x
   })
   md
 }
 
 discard_uninfo_columns_in_metadata<-function(md){
-  noninfo_idx<-which(apply(md, 2, function(x) length(unique(x))==1))
-  md<-md[-noninfo_idx]
+  noninfo_idx<-which(sapply(md, function(x) length(unique(x))==1))
+  if(length(noninfo_idx) > 0) md<-md[, -noninfo_idx, drop=FALSE]
   md
 }
 
@@ -146,19 +124,18 @@ trim_metadata <- function(md, completeness_threshold=0.5, filter_cols_by_type="n
     stop("Only 'numeric', 'categorical', or NA are allowed for 'filter_cols_by_type'!")
   md<-normalize_NA_in_metadata(md)
   md_summ<-check_metadata(metadata = md)
-  filtered_md_summ <- md_summ %>%
-    filter(n_real_values!=n_unique_values) %>%
-    filter(completeness>completeness_threshold) %>%
-    filter(n_unique_values>1)
+  keep <- md_summ$n_real_values!=md_summ$n_unique_values &
+    md_summ$completeness>completeness_threshold &
+    md_summ$n_unique_values>1
   if(is.na(filter_cols_by_type)){
     cat("No column was filtered by data type!\n")
   }else if(filter_cols_by_type=="numeric"){
-    filtered_md_summ <- filtered_md_summ %>% filter(numeric_var==TRUE)
+    keep <- keep & md_summ$numeric_var
   }else{
-    filtered_md_summ <- filtered_md_summ %>% filter(categorical_var==TRUE)
+    keep <- keep & md_summ$categorical_var
   }
-  vars<-filtered_md_summ[, "metadata"]
-  return(md[, vars])
+  vars<-md_summ$metadata[keep]
+  return(md[, vars, drop=FALSE])
 }
 
 chop_seq_to_x_nt<-function(df, start=1, nt=100){
@@ -172,16 +149,14 @@ chop_seq_to_x_nt<-function(df, start=1, nt=100){
 }
 
 
-
-
 filter_features_allzero<-function(data, samples=TRUE, features=TRUE){
   if(samples & features){
-    result<-data[which(apply(data, 1, sum)!=0), ]
-    result<-data[, which(apply(result, 2, sum)!=0)]
+    result<-data[which(rowSums(data)!=0), , drop=FALSE]
+    result<-result[, which(colSums(result)!=0), drop=FALSE]
   }else if(samples & !features){
-    result<-data[which(apply(data, 1, sum)!=0), ]
+    result<-data[which(rowSums(data)!=0), , drop=FALSE]
   }else if(!samples & features){
-    result<-data[, which(apply(data, 2, sum)!=0)]
+    result<-data[, which(colSums(data)!=0), drop=FALSE]
   }else{
     stop("Nothing has been done!")
   }
@@ -193,46 +168,46 @@ filter_features_by_threshold <- function(data, threshold) {
     stop("Threshold should be a value between 0 and 1.")
   }
   min_nonzero_count <- (1-threshold) * nrow(data)
-  result <- data[, which(colSums(data != 0) >= min_nonzero_count)]
+  result <- data[, which(colSums(data != 0) >= min_nonzero_count), drop=FALSE]
   return(result)
 }
 
 filter_features_by_prev <- function(data, prev=0.001){
-  data<-data[, which(colSums(data!=0) > prev * nrow(data))]
+  data<-data[, which(colSums(data!=0) > prev * nrow(data)), drop=FALSE]
   data
 }
 
-filter_features_by_abundance <- function(data, mean_abd_cutoff=0.001){
-  hist(colMeans(data))
-  data<-data[, which(colMeans(data) > mean_abd_cutoff)]
+filter_features_by_abundance <- function(data, mean_abd_cutoff=0.001, plot=TRUE){
+  if(plot) hist(colMeans(data))
+  data<-data[, which(colMeans(data) > mean_abd_cutoff), drop=FALSE]
   data
 }
 
 remove_noisy_feature_by_count_cutoff <- function(data, count_cutoff=1000){
-  if(class(data)=="data.frame") data<-data.matrix(data)
+  if(is.data.frame(data)) data<-data.matrix(data)
   cat("The total number of zeros in the table:", sum(data==0), "\n")
   data[data<=count_cutoff]<-0
   cat("The total number of zeros in the filtered table:", sum(data==0))
-  data<-data.frame(data)
+  data<-data.frame(data, check.names = FALSE)
   data
 }
 
 filter_features_with_NA <- function(data, min_prev=0){
   idx <- which(colSums(is.na(data)) <= min_prev * nrow(data))
-  data<-data[, idx]
+  data<-data[, idx, drop=FALSE]
   data
 }
 
 filter_samples_with_NA <- function(data, min_prev=0){
   idx <- which(rowSums(is.na(data)) <= min_prev * ncol(data))
-  data<-data[idx, ]
+  data<-data[idx, , drop=FALSE]
   data
 }
 
 
 filter_samples_by_NA_in_y <- function(data, y){
   y_k<-y[which(!is.na(y))]
-  data_k<-data[which(!is.na(y)) ,]
+  data_k<-data[which(!is.na(y)), , drop=FALSE]
   result<-list()
   result$data_k<-data_k
   result$y_k<-y_k
@@ -240,11 +215,14 @@ filter_samples_by_NA_in_y <- function(data, y){
 }
 
 #' @title filter_samples_by_groups_in_target_field_of_metadata
+#' @description Keep (or remove) the samples belonging to the specified groups of a metadata variable.
 #' @param data A data.frame.
 #' @param metadata A data.frame including multiple metadata variables corresponds to samples in the data.
 #' @param target_field A character string indicating a target variable in the metadata.
 #' @param groups A character string(s) indicating one or multiple groups in the target metadata variable specified.
 #' @param negate A bool value indicates if samples in the specified groups should be removed (TRUE) or kept (FALSE).
+#' @param ids_col The column of metadata holding sample IDs. If NA, the rownames of metadata are used.
+#' @return A list with the filtered \code{data} and \code{metadata}.
 #' @examples
 #' set.seed(123)
 #' data <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
@@ -256,7 +234,8 @@ filter_samples_by_NA_in_y <- function(data, y){
 #' y<-factor(c(rep("A", 30), rep("B", 30)))
 #' y0<-factor(c(rep("A", 5), rep("B", 55)))
 #' metadata <- data.frame(z, y, y0)
-#' filter_samples_by_groups_in_target_field_of_metadata(data, metadata, target_field="z", groups=c("D", "A"), negate=TRUE)
+#' filter_samples_by_groups_in_target_field_of_metadata(data, metadata, target_field="z",
+#'                                                      groups=c("D", "A"), negate=TRUE)
 #' @export
 filter_samples_by_groups_in_target_field_of_metadata <- function(data, metadata, target_field, groups, negate=FALSE, ids_col=NA){
   if(is.na(ids_col)){
@@ -306,10 +285,9 @@ filter_samples_by_NA_in_target_field_of_metadata <- function(data, metadata, tar
 }
 
 split_dm_by_metadata<-function(dm, metadata, split_factor){
-  #if(is.null(rownames(dm))#
   if(!is.element(split_factor, colnames(metadata)))
     stop("The split_factor you specified should be one of the column names of input metadata.")
-  if(class(dm)=="dist") dm <- data.matrix(dm)
+  if(inherits(dm, "dist")) dm <- data.matrix(dm)
   f<-metadata[, split_factor]
   sub_dm_name_list<-split(1:nrow(dm), f, drop=TRUE)
   sub_dm_list<-
@@ -387,9 +365,6 @@ filter_samples_by_seq_depth<-function(data, metadata, cutoff=1000){
     stop("The read count of all samples is less than sequencing depth threshold!")
   }
   cat("The sample IDs are idenical in feature table and metadata: ", identical(rownames(data_k), rownames(metadata_k)), "\n")
-  #metadata_k$Seq_depth<-rowSums(df_k)
-  #p<-ggplot(metadata_k, aes(Seq_depth)) + geom_histogram() + xlim(1000, 70000) + theme_bw()
-  #p
   result<-list()
   result$data<-data_k
   result$metadata<-metadata_k
@@ -421,8 +396,38 @@ keep_shared_features<-function(train_x, test_x){
   result
 }
 
+#' @title harmonize_features
+#' @description Feature harmonization across multiple datasets: restrict each feature table
+#' (samples in rows, features in columns) to the features shared by all datasets, in a common column order.
+#' Features unique to individual datasets are excluded because they cannot contribute to cross-dataset prediction.
+#' Pre-harmonized tables (e.g., after aggregation to a shared taxonomic level) can be supplied instead.
+#' @param df_list A (named) list of data.frames or matrices with feature IDs as column names.
+#' @param verbose A boolean value indicating if the number of shared features and
+#' the proportion of features kept in each dataset are printed.
+#' @return A list of data.frames with identical columns.
+#' @examples
+#' df_list <- list(A=data.frame(t1=1:3, t2=4:6, t3=7:9),
+#'                 B=data.frame(t3=1:4, t1=2:5, t4=3:6))
+#' harmonize_features(df_list)
+#' @export
+harmonize_features <- function(df_list, verbose=TRUE){
+  if(!is.list(df_list) || is.data.frame(df_list) || length(df_list) < 2)
+    stop("df_list should be a list of at least two feature tables.")
+  feature_sets <- lapply(df_list, colnames)
+  if(any(vapply(feature_sets, is.null, logical(1))))
+    stop("All feature tables should have feature IDs as column names.")
+  shared <- Reduce(intersect, feature_sets)
+  if(length(shared)==0) stop("No feature is shared by all datasets.")
+  if(verbose){
+    cat("Number of features shared by all datasets:", length(shared), "\n")
+    cat("The proportion of features kept in each dataset:\n")
+    print(round(vapply(feature_sets, function(f) length(shared)/length(f), numeric(1)), 3))
+  }
+  lapply(df_list, function(d) data.frame(d[, shared, drop=FALSE], check.names=FALSE))
+}
 
-#' feature metadata
+
+#' @noRd
 add_ann<-function(tab, fmetadata, tab_id_col=1, fmetadata_id_col=1){
   fmetadata[, fmetadata_id_col]<-as.character(fmetadata[, fmetadata_id_col])
   tab[, tab_id_col]<-as.character(tab[, tab_id_col])
@@ -436,13 +441,13 @@ add_ann<-function(tab, fmetadata, tab_id_col=1, fmetadata_id_col=1){
   out
 }
 
-rbind.na<-function(l){
+rbind_na<-function(l){
   max_len<-max(unlist(lapply(l, length)))
   c_l<-lapply(l, function(x) {c(x, rep(NA, max_len - length(x)))})
   do.call(rbind, c_l)
 }
 expand_Taxon<-function(df, Taxon){
-  taxa_df <- rbind.na(strsplit(as.character(df[, Taxon]), '; '))
+  taxa_df <- rbind_na(strsplit(as.character(df[, Taxon]), '; '))
   colnames(taxa_df) <- c("kingdom","phylum","class","order","family","genus","species") #"kingdom",
   data.frame(df, taxa_df)
 }

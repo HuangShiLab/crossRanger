@@ -7,14 +7,17 @@
 rf_reg.cross_appl(rf_list, x_list, y_list)
 }
 \arguments{
-\item{rf_list}{A list of rf.model objects from \code{rf.out.of.bag}.}
+\item{rf_list}{The output of \code{rf_reg.by_datasets}. For models from cross-validation,
+the predictions are averaged over the models of all folds.}
 
-\item{x_list}{A list of training datasets usually in the format of data.frame.}
+\item{x_list}{A list of training datasets usually in the format of data.frame.
+Features are matched to the model by feature IDs; features absent from a test dataset are set to 0 with a warning.}
 
 \item{y_list}{A list of responsive vector for regression in the training datasets.}
 }
 \value{
-...
+An object of class \code{rf_reg.cross_appl} including a performance summary (\code{perf_summ})
+and the predicted values of all predictions (\code{predicted}).
 }
 \description{
 Based on pre-computed rf models regressing \code{c_category} in each the sub-datasets splited by the \code{s_category},
@@ -27,7 +30,6 @@ df <- data.frame(rbind(t(rmultinom(14, 14*5, c(.21,.6,.12,.38,.099))),
             t(rmultinom(30, 30*5, c(.011,.6,.22,.28,.289))),
             t(rmultinom(30, 30*5, c(.091,.6,.32,.18,.209))),
             t(rmultinom(30, 30*5, c(.001,.6,.42,.58,.299)))))
-df0 <- data.frame(t(rmultinom(120, 600,c(.001,.6,.2,.3,.299))))
 metadata<-data.frame(f_s=factor(c(rep("A", 60), rep("B", 60))),
                      f_s1=factor(c(rep(TRUE, 60), rep(FALSE, 60))),
                      f_c=factor(c(rep("C", 30), rep("H", 30), rep("D", 30), rep("P", 30))),
@@ -35,7 +37,7 @@ metadata<-data.frame(f_s=factor(c(rep("A", 60), rep("B", 60))),
                      )
 
 table(metadata[, 'f_c'])
-reg_res<-rf_reg.by_datasets(df, metadata, s_category='f_c', c_category='age')
+reg_res<-rf_reg.by_datasets(df, metadata, s_category='f_c', c_category='age', nfolds=1)
 rf_reg.cross_appl(reg_res, x_list=reg_res$x_list, y_list=reg_res$y_list)
 reg_res<-rf_reg.by_datasets(df, metadata, nfolds=5, s_category='f_c', c_category='age')
 rf_reg.cross_appl(reg_res, x_list=reg_res$x_list, y_list=reg_res$y_list)

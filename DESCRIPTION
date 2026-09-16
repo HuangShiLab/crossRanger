@@ -1,17 +1,23 @@
 Package: crossRanger
 Type: Package
-Title: Cross-Application of Ranger Models using microbiome data
-Version: 0.1.0
+Title: Cross-Application of Ranger Models Using Microbiome Data
+Version: 0.2.0
 Author: Shi Huang
 Maintainer: Shi Huang <shihuang047@gmail.com>
-Description: This package (1) bulids multiple Ranger models according to metadata for a given dataset;
-    (2) applies the RF models to each other.
-License: GPL-2
+Description: Builds multiple random forest models with 'ranger' according to metadata for a given
+    dataset or for multiple datasets, using out-of-bag estimation, stratified k-fold, group k-fold or
+    leave-one-group-out cross-validation; applies the models to each other and performs
+    leave-one-dataset-out validation; identifies biomarkers by recursive feature elimination
+    and univariate statistical tests; and visualizes the results and generates R Markdown reports.
+License: GPL-3
 Encoding: UTF-8
-LazyData: FALSE
-Imports: 
-  ranger, stats, utils, foreach, doMC, compositions, grDevices, PRROC, rlang, gtools,
-  Matrix, ggplot2, caTools, ROCR, pROC, caret, corrplot, gridExtra, plyr, reshape2, viridis
-Suggests: 
-    testthat
-RoxygenNote: 7.2.0
+LazyData: true
+Depends: R (>= 3.5.0)
+Imports:
+  ranger, stats, utils, graphics, parallel, foreach, doParallel, compositions, grDevices, PRROC, rlang, gtools,
+  Matrix, ggplot2 (>= 3.4.0), pROC, caret, corrplot, gridExtra, plyr, reshape2, viridis
+Suggests:
+    testthat (>= 3.0.0), knitr, rmarkdown, grid
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+RoxygenNote: 7.3.2

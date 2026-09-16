@@ -9,13 +9,13 @@ plot_reg_res_list(reg_res_list, outdir = NULL, plot_height = NULL)
 \arguments{
 \item{reg_res_list}{A list object, the output of the function \code{rf_reg.by_datasets}.}
 
-\item{outdir}{The output directory.}
+\item{outdir}{The output directory. If NULL, no file is written.}
 
 \item{plot_height}{The plot height.}
 }
 \description{
-Plot a summary of the performance of a list of classification models
-output from \code{rf_clf.by_datasets}.
+Plot a summary of the performance of a list of regression models
+output from \code{rf_reg.by_datasets}.
 }
 \examples{
 df <- data.frame(rbind(t(rmultinom(7, 75, c(.21,.6,.12,.38,.099))),
@@ -23,7 +23,6 @@ df <- data.frame(rbind(t(rmultinom(7, 75, c(.21,.6,.12,.38,.099))),
             t(rmultinom(15, 75, c(.011,.6,.22,.28,.289))),
             t(rmultinom(15, 75, c(.091,.6,.32,.18,.209))),
             t(rmultinom(15, 75, c(.001,.6,.42,.58,.299)))))
-df0 <- data.frame(t(rmultinom(60, 300,c(.001,.6,.2,.3,.299))))
 metadata<-data.frame(f_s=factor(c(rep("A", 15), rep("B", 15), rep("A", 15), rep("B", 15))),
                      f_c=factor(c(rep("C", 30), rep("D", 30))),
                      f_d=factor(c(rep("A", 15), rep("B", 15), rep("C", 15), rep("D", 15))),

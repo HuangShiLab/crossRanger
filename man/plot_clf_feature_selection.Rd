@@ -8,37 +8,52 @@ plot_clf_feature_selection(
   x,
   y,
   nfolds = 5,
-  rf_clf_model,
+  rf_clf_model = NULL,
   metric = "AUROC",
   positive_class = NA,
-  outdir = NULL
+  outdir = NULL,
+  tolerance = 0.01,
+  recursive = FALSE,
+  ntree = 500
 )
 }
 \arguments{
-\item{x}{The data frame or data matrix for model training.}
+\item{x}{The data frame or data matrix for model training, or the result of \code{rf_clf.rfe}.}
 
 \item{y}{A factor related to the responsive vector for training data.}
 
 \item{nfolds}{The number of folds in the cross-validation for each feature set.}
 
-\item{rf_clf_model}{The rf classification model from \code{rf.out.of.bag}}
+\item{rf_clf_model}{An optional rf classification model from \code{rf.out.of.bag} or \code{rf.cross.validation}
+used to rank the features.}
 
 \item{metric}{The classification performance metric applied.
-If binary classification, this must be one of "AUROC", "Accuracy", "Kappa", "F1".
+If binary classification, this must be one of "AUROC", "AUPRC", "Accuracy", "Kappa", "F1".
 If multi-class classification, this must be one of "Accuracy", "Kappa".}
 
 \item{positive_class}{A class of the y.}
 
 \item{outdir}{The output directory.}
+
+\item{tolerance}{The relative tolerance for choosing the optimal parsimonious feature set.}
+
+\item{recursive}{A boolean value indicating if the feature ranking is re-computed at each step (see \code{rf_clf.rfe}).}
+
+\item{ntree}{The number of trees.}
+}
+\value{
+A list including the performance table (\code{top_n_perf}), \code{best_n_features},
+\code{optimal_n_features}, \code{selected_features}, the models (\code{top_n_rf}), the plot and the \code{rf_clf.rfe} object.
 }
 \description{
 Plot the classification performance against the gradually reduced number of features used in the modeling.
+The dashed line marks the optimal parsimonious feature set: the smallest set whose performance is within
+\code{tolerance} of the best performance.
 }
 \examples{
 set.seed(123)
-require("gtools")
 n_features <- 100
-prob_vec <- rdirichlet(5, sample(n_features))
+prob_vec <- gtools::rdirichlet(5, sample(n_features))
 x <- data.frame(rbind(t(rmultinom(7, 7*n_features, prob_vec[1, ])),
             t(rmultinom(8, 8*n_features, prob_vec[2, ])),
             t(rmultinom(15, 15*n_features, prob_vec[3, ])),
@@ -48,10 +63,11 @@ y<-factor(c(rep("A", 30), rep("C", 30)))
 s<-factor(rep(c("B1", "B2", "B3", "B4"), 15))
 rf_model<-rf.cross.validation(x, y, nfolds=5)
 summ <- plot_clf_feature_selection(x, y, nfolds=5, rf_model, metric="AUROC", outdir=NULL)
+summ$plot
 summ <- plot_clf_feature_selection(x, y, nfolds=s, rf_model, metric="AUROC", outdir=NULL)
-res<-replicate(10, plot_clf_feature_selection(x, y,
-nfolds=5, rf_model, metric="AUROC", outdir=NULL))
-do.call(rbind, res["top_n_perf", ])
+# recursive feature elimination
+rfe <- rf_clf.rfe(x, y, nfolds=5, metric="AUROC", ntree=200)
+plot_clf_feature_selection(rfe)$plot
 }
 \author{
 Shi Huang

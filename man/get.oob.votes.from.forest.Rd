@@ -7,7 +7,7 @@
 get.oob.votes.from.forest(model, x)
 }
 \arguments{
-\item{model}{A object of class \code{rf.out.of.bag} with elements.}
+\item{model}{A \code{ranger} classification model trained with \code{keep.inbag=TRUE}.}
 
 \item{x}{The training data.}
 }

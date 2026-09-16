@@ -24,6 +24,9 @@ If there are only two factor levels, the first level will be used as the "positi
 
 \item{outdir}{The output directory.}
 }
+\value{
+A ggplot object.
+}
 \description{
 plot_clf_probabilities
 }
@@ -37,7 +40,7 @@ x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
 y<-factor(c(rep("1", 20), rep("A", 20), rep("C", 20)))
 rf_clf_model<-rf.out.of.bag(x, y)
 positive_class="1"
-plot_clf_probabilities(y, rf_clf_model, positive_class, outdir='./')
+plot_clf_probabilities(y, rf_clf_model, positive_class)
 }
 \author{
 Shi Huang

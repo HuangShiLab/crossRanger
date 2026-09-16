@@ -14,7 +14,7 @@ plot_rel_predicted(
 \arguments{
 \item{relTrain_data}{The output dataframe of \code{calc_rel_predicted}.}
 
-\item{prefix}{The prefix of a train dataset.}
+\item{prefix}{The prefix of a train dataset, or the prefixes of both train and test datasets.}
 
 \item{target_field}{A string indicating the target field in the metadata for regression.}
 
@@ -38,8 +38,10 @@ test_x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
 test_y<- 1:45
 train_rf_model<-rf.out.of.bag(train_x, train_y)
 predicted_test_y<-predict(train_rf_model$rf.model, test_x)$predictions
-relTrain_data<-calc_rel_predicted(train_y, train_rf_model$predicted, test_y, predicted_test_y)
+relTrain_data<-calc_rel_predicted(train_y, train_rf_model$predicted,
+                                  test_y=test_y, predicted_test_y=predicted_test_y)
 plot_rel_predicted(relTrain_data)
+plot_rel_predicted(relTrain_data, prefix=c("train", "test"))
 }
 \author{
 Shi Huang

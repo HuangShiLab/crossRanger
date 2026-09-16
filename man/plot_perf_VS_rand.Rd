@@ -9,40 +9,51 @@ plot_perf_VS_rand(
   y,
   predicted_y,
   prefix = "train",
-  target_field,
-  nfolds,
+  target_field = "value",
+  nfolds = 5,
   metric = "MAE",
   permutation = 100,
   n_features = NA,
-  outdir = NULL
+  outdir = NULL,
+  positive_class = NA,
+  n_cores = 1
 )
 }
 \arguments{
 \item{x}{The train data.}
 
-\item{y}{The numeric labeling data.}
+\item{y}{The numeric labeling data (regression) or a factor (classification).}
 
-\item{predicted_y}{The predicted values for y.}
+\item{predicted_y}{The predicted values for y (regression), or the rf classification model
+(\code{rf.out.of.bag} or \code{rf.cross.validation}) whose predictions are evaluated (classification).}
 
 \item{prefix}{The prefix for the dataset in the training or testing.}
 
-\item{target_field}{A string indicating the target field of the metadata for regression.}
+\item{target_field}{A string indicating the target field of the metadata.}
 
 \item{nfolds}{The number of folds in the cross validation. If nfolds > length(y)
 or nfolds==-1, uses leave-one-out cross-validation. If nfolds was a factor, it means customized folds
 (e.g., leave-one-group-out cv) were set for CV.}
 
-\item{metric}{The regression performance metric applied, including MAE, RMSE, MSE, R_squared, Adj_R_squared, or Separman_rho.}
+\item{metric}{The performance metric applied: MAE, RMSE, MSE, MAPE, R_squared, Adj_R_squared or Spearman_rho for regression;
+AUROC, AUPRC, Accuracy, Kappa, F1 or Balanced_Accuracy for classification.}
 
-\item{permutation}{The permutation times for a random guess of regression performance.}
+\item{permutation}{The permutation times for a random guess of performance.}
 
 \item{n_features}{The number of features in the training data.}
 
 \item{outdir}{The output directory.}
+
+\item{positive_class}{A class of y for classification.}
+
+\item{n_cores}{The number of cores for running the permutations in parallel.}
+}
+\value{
+A list including the empirical p value, the observed and permuted performance, and the histogram.
 }
 \description{
-This outputs a histogram and a p-value showing if the performance of a real regression model
-significantly better than null models.
+This outputs a histogram and an empirical p-value showing if the performance of a real
+regression or classification model is significantly better than null models built on permuted labels.
 }
 \examples{
 set.seed(123)
@@ -54,8 +65,12 @@ x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
 y<- 1:60
 rf_model<-rf.out.of.bag(x, y)
 p<-plot_perf_VS_rand(x=x, y=y, predicted_y=rf_model$predicted, prefix="train", nfolds=5,
-permutation=100, metric="MAE", target_field="age", n_features=5)
-p
+permutation=20, metric="MAE", target_field="age", n_features=5)
+p$emp_p_value
+y_clf <- factor(rep(c("A", "B"), each=30))
+clf_model <- rf.cross.validation(x, y_clf, nfolds=5)
+plot_perf_VS_rand(x=x, y=y_clf, predicted_y=clf_model, nfolds=5,
+                  permutation=20, metric="AUROC")$plot
 }
 \author{
 Shi Huang

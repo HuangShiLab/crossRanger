@@ -27,17 +27,19 @@ BetweenGroup.test(
 
 \item{q_cutoff}{A number indicating the cutoff of q values after fdr correction.}
 
-\item{paired}{A logical indicating if paired between-group comparison is desired.}
+\item{paired}{A logical indicating if paired between-group comparison is desired.
+For paired tests, the samples of the two groups should be in the same order of pairs.}
 }
 \value{
-...
+A data.frame including descriptive statistics of all samples and each group,
+the log2 fold changes (\code{mean_logfc}, \code{median_logfc}, \code{generalized_logfc}),
+p values and adjusted p values of parametric and non-parametric tests, and the enrichment (\code{Enr}) of each feature.
 }
 \description{
 It runs standard univarate statistical tests (such as t.test, wilcox.test,
 oneway.test, kruskal.test)  for all variates (columns) in the data.frame/data.matrix.
 }
 \examples{
-x0 <- data.frame(t(rmultinom(16,160,c(.001,.5,.3,.3,.299))) + 0.65)
 x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
             t(rmultinom(8, 75, c(.201,.4,.12,.18,.099))),
             t(rmultinom(15, 75, c(.011,.3,.22,.18,.289))),

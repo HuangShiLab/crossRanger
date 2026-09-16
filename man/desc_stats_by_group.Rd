@@ -2,7 +2,7 @@
 % Please edit documentation in R/BetweenGroup.test.R
 \name{desc_stats_by_group}
 \alias{desc_stats_by_group}
-\title{desc_stats_by_group}
+\title{desc_stats_by_group_using_mean_logfc}
 \usage{
 desc_stats_by_group(x, y, clr_transform = FALSE, positive_class = NA)
 }

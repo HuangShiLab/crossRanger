@@ -13,31 +13,39 @@ plot_test_perf_VS_rand(
   metric = "MAE",
   permutation = 1000,
   n_features = NA,
-  outdir = NULL
+  outdir = NULL,
+  positive_class = NA
 )
 }
 \arguments{
-\item{rf_model}{A trained rf model object, which should be generated from /code{rf.cross.validation} or /code{rf.out.of.bag}.}
+\item{rf_model}{A trained rf model object, which should be generated from \code{rf.cross.validation} or \code{rf.out.of.bag}.}
 
 \item{newx}{A data.matrix or data.frame with the new data for rf model testing.}
 
-\item{newy}{The data label of new data.}
+\item{newy}{The data label of new data: numeric (regression) or a factor (classification).}
 
 \item{prefix}{The prefix for the dataset in the training or testing.}
 
 \item{target_field}{A string indicating the target field of the metadata for machine-learning analysis.}
 
-\item{metric}{The regression performance metric applied, including MAE, RMSE, MSE, R_squared, Adj_R_squared, or Separman_rho.}
+\item{metric}{The performance metric applied: MAE, RMSE, MSE, MAPE, R_squared, Adj_R_squared or Spearman_rho for regression;
+AUROC, AUPRC, Accuracy, Kappa, F1 or Balanced_Accuracy for classification.}
 
-\item{permutation}{The permutation times for a random guess of regression performance.}
+\item{permutation}{The permutation times for a random guess of performance.}
 
 \item{n_features}{The number of features in the training data.}
 
 \item{outdir}{The output directory.}
+
+\item{positive_class}{A class of newy for classification.}
+}
+\value{
+A list including the empirical p value, the observed and permuted performance, and the histogram.
 }
 \description{
-This outputs a histogram and a p-value showing if the performance of a real regression model
-significantly better than null models.
+This outputs a histogram and an empirical p-value showing if the performance of a trained
+regression or classification model on new (e.g., independent) data is significantly better than random guesses,
+i.e., the performance of the same predictions against permuted labels.
 }
 \examples{
 set.seed(123)
@@ -53,12 +61,9 @@ newx <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
 newy<- 4:33
 rf_model<-rf.out.of.bag(x, y)
-p<-plot_perf_VS_rand(x=x, y=y, predicted_y=rf_model$predicted, prefix="train", nfolds=5,
-permutation=100, metric="MAE", target_field="age", n_features=5)
-p
 p_test<-plot_test_perf_VS_rand(rf_model, newx, newy, permutation=100,
                                metric="MAE", target_field="age", n_features=5)
-p_test
+p_test$emp_p_value
 }
 \author{
 Shi Huang

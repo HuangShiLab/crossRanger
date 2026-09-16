@@ -4,15 +4,18 @@
 \alias{log.mat}
 \title{log.mat}
 \usage{
-\method{log}{mat}(mat, base = 2)
+\method{log}{mat}(x, base = 2)
 }
 \arguments{
-\item{mat}{A data.martrix or data.frame including multiple numeric vectors.}
+\item{x}{A data.martrix, data.frame or numeric vector.}
 
 \item{base}{The base in the log-transformation.}
 }
 \description{
 Log transformation of a data matrix with pseudo count.
+}
+\details{
+If any value is zero, half of the minimum positive value is added to all values as a pseudo count.
 }
 \examples{
 x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
