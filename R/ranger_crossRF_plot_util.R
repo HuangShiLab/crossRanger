@@ -625,10 +625,17 @@ id_non_spcf_markers <- function(feature_res, positive_class="disease",
 plot_logfc_heatmap <- function(feature_res, logfc_col="mean_logfc", features=NULL, min_sig_datasets=1,
                                feature_md=NULL, feature_id_col="Feature_ID", label_col=NULL,
                                outdir=NULL, plot_width=6, plot_height=NULL){
-  if(inherits(feature_res, c("rf_clf.by_datasets", "rf_clf.comps"))){
-    feature_res <- do.call(rbind, unname(feature_res$feature_imps_list))
-  }
   required_cols <- c("feature", "dataset", "Enr", logfc_col)
+  if(inherits(feature_res, c("rf_clf.by_datasets", "rf_clf.comps"))){
+    # the descriptive columns of BetweenGroup.test carry the group names, so they differ between
+    # comparisons; only the columns needed here are kept before the tables are stacked
+    feature_res <- do.call(rbind, lapply(unname(feature_res$feature_imps_list), function(d){
+      missing_cols <- setdiff(required_cols, colnames(d))
+      if(length(missing_cols) > 0)
+        stop("Column(s) not found in the feature statistics: ", paste(missing_cols, collapse=", "))
+      d[, required_cols, drop=FALSE]
+    }))
+  }
   missing_cols <- setdiff(required_cols, colnames(feature_res))
   if(length(missing_cols) > 0) stop("Column(s) not found in feature_res: ", paste(missing_cols, collapse=", "))
   plot_df <- data.frame(feature=as.character(feature_res$feature),

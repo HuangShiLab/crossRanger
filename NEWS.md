@@ -73,6 +73,8 @@
   The positive class is now the case level with `direction = "<"`.
 * `log.mat()` was registered only as an S3 method of `log()` and not exported, and failed for data.frames with zeros.
 * `rf.out.of.bag(imp_pvalues = TRUE)` works with non-syntactic feature names.
+* `plot_logfc_heatmap()` failed for `rf_clf.by_datasets` and `rf_clf.comps` results: the statistics tables of the
+  comparisons describe different groups and therefore have different columns, so they could not be stacked.
 * Broken examples of `plot_clf_ROC()`, `plot_clf_pROC()`, `rf_clf.pairwise()`, `mttest()`, `get.mislabel.scores()`,
   `plot_train_vs_test()` and `plot_rel_predicted()` are fixed.
 
