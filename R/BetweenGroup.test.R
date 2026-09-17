@@ -15,6 +15,11 @@
 #' @param q_cutoff A number indicating the cutoff of q values after fdr correction.
 #' @param paired A logical indicating if paired between-group comparison is desired.
 #' For paired tests, the samples of the two groups should be in the same order of pairs.
+#' @param pseudocount The value added before the log transformation of the fold changes. By default
+#' (\code{NULL}) it is derived per feature from the data: half of the smallest positive value of that
+#' feature, and only if the feature contains a zero. Pass a fixed value (e.g. \code{1e-6} for relative
+#' abundances) when the fold changes of several datasets or strata are to be compared, so that the
+#' shrinkage of features containing zeros does not differ between them.
 #' @return A data.frame including descriptive statistics of all samples and each group,
 #' the log2 fold changes (\code{mean_logfc}, \code{median_logfc}, \code{generalized_logfc}),
 #' p values and adjusted p values of parametric and non-parametric tests, and the enrichment (\code{Enr}) of each feature.
@@ -42,7 +47,7 @@
 #' system.time(BetweenGroup.test(x_, y_1))
 #' @author Shi Huang
 #' @export
-BetweenGroup.test <-function(x, y, clr_transform=FALSE, p.adj.method="bonferroni", positive_class=NA, q_cutoff=0.2, paired=FALSE){
+BetweenGroup.test <-function(x, y, clr_transform=FALSE, p.adj.method="bonferroni", positive_class=NA, q_cutoff=0.2, paired=FALSE, pseudocount=NULL){
   # p.adjust.methods
   # c("holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none")
   y<-factor(y)
@@ -57,7 +62,8 @@ BetweenGroup.test <-function(x, y, clr_transform=FALSE, p.adj.method="bonferroni
   #  descriptive statistics of each feature (column) for all samples
   desc_stats_all_df<-desc_stats_all(x, y, positive_class=positive_class, clr_transform=clr_transform)
   #  descriptive statistics of each feature (column) for samples (rows) grouped by y
-  desc_stats_by_group_df<-desc_stats_by_group(x, y, clr_transform=clr_transform, positive_class=positive_class)
+  desc_stats_by_group_df<-desc_stats_by_group(x, y, clr_transform=clr_transform, positive_class=positive_class,
+                                              pseudocount=pseudocount)
   #-------------------------------Enrichment
   Enr_all<-Enr_by_q_cutoff(test_output, desc_stats_by_group_df, positive_class, q_cutoff=q_cutoff)
   #-------------------------------
@@ -70,7 +76,12 @@ BetweenGroup.test <-function(x, y, clr_transform=FALSE, p.adj.method="bonferroni
 #' @description Log transformation of a data matrix with pseudo count.
 #' @param x A data.martrix, data.frame or numeric vector.
 #' @param base The base in the log-transformation.
+#' @param pseudocount The value added to \code{x} before the log transformation. By default (\code{NULL})
+#' it is chosen from the data: half of the minimum positive value, and only if \code{x} contains a zero.
+#' A fixed value makes the transformation independent of the data at hand, which is needed when the results
+#' of several datasets are to be compared; \code{0} disables the pseudo count.
 #' @details If any value is zero, half of the minimum positive value is added to all values as a pseudo count.
+#' Missing values are ignored when the pseudo count is derived and are returned as \code{NA}.
 #' @examples
 #' x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),
 #'             t(rmultinom(8, 75, c(.201,.4,.12,.18,.099))),
@@ -82,17 +93,16 @@ BetweenGroup.test <-function(x, y, clr_transform=FALSE, p.adj.method="bonferroni
 #' @author Shi Huang
 #' @rawNamespace export(log.mat)
 #' @rawNamespace S3method(log, mat)
-log.mat<-function(x, base=2){
-  if(any(x == 0)) {
-    v <- unlist(x)
-    if(all(v == 0)) {
-      x <- x + 1e-5
-    }
-    else{
-      minval <- min(v[v > 0])/2
-      x <- x + minval
+log.mat<-function(x, base=2, pseudocount=NULL){
+  if(is.null(pseudocount)){
+    pseudocount <- 0
+    if(any(x == 0, na.rm=TRUE)) {
+      v <- unlist(x)
+      v <- v[!is.na(v) & v > 0]
+      pseudocount <- if(length(v) == 0) 1e-5 else min(v)/2
     }
   }
+  if(pseudocount != 0) x <- x + pseudocount
   out<-log(x, base)
   return(out)
 }
@@ -211,36 +221,44 @@ desc_stats_all<-function(x, y, positive_class=NA, clr_transform=FALSE){
 #'             t(rmultinom(15, 75, c(.001,.1,.42,.18,.299)))))
 #' desc_stats_by_group(x, y, clr_transform=FALSE)
 #' desc_stats_by_group(x, y, clr_transform=TRUE)
+#' @param pseudocount The value added to the group summaries before the log transformation of the fold
+#' changes. By default (\code{NULL}) it is derived per feature from the data (see \code{\link{log.mat}}).
+#' Pass a fixed value when the fold changes of several datasets are to be compared, so that features
+#' containing zeros are shrunk equally in all of them.
 #' @author Shi Huang
 #' @export
-desc_stats_by_group<-function(x, y, clr_transform=FALSE, positive_class=NA){
+desc_stats_by_group<-function(x, y, clr_transform=FALSE, positive_class=NA, pseudocount=NULL){
   y<-factor(y)
   positive_class<-ifelse(is.na(positive_class), levels(y)[1], positive_class)
   OccRate<-function(x) sum(x!=0)/length(x)
   log10_median<-function(x, base=10) log.mat(stats::median(x), base=10)
 
-  mean_logfc<-function(x, y, base=2, positive_class.=positive_class){
+  # the group summaries are log-transformed one feature at a time: with a pseudo count taken from the
+  # data, transforming the whole feature-by-group matrix at once would let the smallest value anywhere
+  # in the table set the pseudo count of every feature, so that the fold change of one feature would
+  # depend on the other features the table happens to contain.
+  logfc_by <- function(x, y, FUN, base=2){
     if(nlevels(y)>2) levels(y)[levels(y)!=positive_class] <- "Others"
-    logMeanAbd<-log.mat(t(apply(x,2,function(x) tapply(x, y, mean))), base=base)
-    out<-logMeanAbd[, positive_class]-logMeanAbd[, colnames(logMeanAbd)!=positive_class]
-    out
+    abd <- t(apply(x, 2, function(v) tapply(v, y, FUN)))
+    logAbd <- abd
+    for(i in seq_len(nrow(abd)))
+      logAbd[i, ] <- log.mat(abd[i, ], base=base, pseudocount=pseudocount)
+    logAbd[, positive_class] - logAbd[, colnames(logAbd)!=positive_class]
   }
 
-  median_logfc <- function(x, y, base=2, positive_class.=positive_class){
-    if(nlevels(y)>2) levels(y)[levels(y)!=positive_class] <- "Others"
-    logMedianAbd<-log.mat(t(apply(x,2,function(x) tapply(x, y, median))), base=base)
-    out<-logMedianAbd[, positive_class]-logMedianAbd[, colnames(logMedianAbd)!=positive_class]
-    out
-  }
+  mean_logfc <- function(x, y, base=2) logfc_by(x, y, mean, base=base)
+
+  median_logfc <- function(x, y, base=2) logfc_by(x, y, stats::median, base=base)
 
   new_quantile <- function(x) {
     r <- quantile(x, probs = seq(0.05, 0.95, 0.05), na.rm = TRUE) # NaN from log of negative (e.g., pre-transformed) values
     return (r)
   }
 
-  generalized_logfc <- function(x, y, base=2, positive_class.=positive_class){
+  generalized_logfc <- function(x, y, base=2){
     if(nlevels(y)>2) levels(y)[levels(y)!=positive_class] <- "Others"
-    logQuantileAbd <- apply(x,2,function(x) tapply(log.mat(x, base = base), y, new_quantile))
+    logQuantileAbd <- apply(x,2,function(x) tapply(log.mat(x, base = base, pseudocount = pseudocount),
+                                                  y, new_quantile))
     results <- rep(0, ncol(x))
     names(results) <- colnames(x)
     for(i in 1:length(logQuantileAbd)) {

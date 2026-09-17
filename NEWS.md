@@ -29,6 +29,10 @@
   and starts a PSOCK cluster on Windows.
 * A parallel backend registered by the user (e.g., doFuture, or a cluster of their own) is now kept
   instead of being silently replaced, so the way of parallelization can be chosen by the user.
+* `BetweenGroup.test()`, `desc_stats_by_group()` and `log.mat()` gain a `pseudocount` argument. By default the
+  pseudo count is still derived from the data (half of the smallest positive value of the feature, added only
+  when the feature contains a zero). A fixed value makes the log fold changes of several datasets or strata
+  comparable, because features containing zeros are then shrunk equally in all of them.
 * `rf.out.of.bag()`, `plot_perf_VS_rand()` and `plot_test_perf_VS_rand()` gain a `seed` argument
   (default 123, which reproduces the results of earlier versions; NULL uses the current random number
   stream). These functions no longer leave the random number generator of the user's R session reset:
@@ -73,6 +77,13 @@
   The positive class is now the case level with `direction = "<"`.
 * `log.mat()` was registered only as an S3 method of `log()` and not exported, and failed for data.frames with zeros.
 * `rf.out.of.bag(imp_pvalues = TRUE)` works with non-syntactic feature names.
+* `BetweenGroup.test()` and `desc_stats_by_group()` computed `mean_logfc` and `median_logfc` by log-transforming
+  the whole feature-by-group matrix of summaries at once, so that the smallest positive value anywhere in the
+  table set the pseudo count of every feature: the fold change of a feature absent from one group depended on
+  which other features the table contained. The summaries are now transformed one feature at a time.
+  `generalized_logfc` was already computed per feature and is unchanged.
+* `log.mat()` raised "missing value where TRUE/FALSE needed" for data containing `NA` and no zero, and returned
+  all `NA` for data containing both. Missing values are now ignored when the pseudo count is derived.
 * `plot_logfc_heatmap()` failed for `rf_clf.by_datasets` and `rf_clf.comps` results: the statistics tables of the
   comparisons describe different groups and therefore have different columns, so they could not be stacked.
 * Broken examples of `plot_clf_ROC()`, `plot_clf_pROC()`, `rf_clf.pairwise()`, `mttest()`, `get.mislabel.scores()`,

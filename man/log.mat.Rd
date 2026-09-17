@@ -4,18 +4,24 @@
 \alias{log.mat}
 \title{log.mat}
 \usage{
-\method{log}{mat}(x, base = 2)
+\method{log}{mat}(x, base = 2, pseudocount = NULL)
 }
 \arguments{
 \item{x}{A data.martrix, data.frame or numeric vector.}
 
 \item{base}{The base in the log-transformation.}
+
+\item{pseudocount}{The value added to \code{x} before the log transformation. By default (\code{NULL})
+it is chosen from the data: half of the minimum positive value, and only if \code{x} contains a zero.
+A fixed value makes the transformation independent of the data at hand, which is needed when the results
+of several datasets are to be compared; \code{0} disables the pseudo count.}
 }
 \description{
 Log transformation of a data matrix with pseudo count.
 }
 \details{
 If any value is zero, half of the minimum positive value is added to all values as a pseudo count.
+Missing values are ignored when the pseudo count is derived and are returned as \code{NA}.
 }
 \examples{
 x <- data.frame(rbind(t(rmultinom(7, 75, c(.201,.5,.02,.18,.099))),

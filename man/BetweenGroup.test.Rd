@@ -11,7 +11,8 @@ BetweenGroup.test(
   p.adj.method = "bonferroni",
   positive_class = NA,
   q_cutoff = 0.2,
-  paired = FALSE
+  paired = FALSE,
+  pseudocount = NULL
 )
 }
 \arguments{
@@ -29,6 +30,12 @@ BetweenGroup.test(
 
 \item{paired}{A logical indicating if paired between-group comparison is desired.
 For paired tests, the samples of the two groups should be in the same order of pairs.}
+
+\item{pseudocount}{The value added before the log transformation of the fold changes. By default
+(\code{NULL}) it is derived per feature from the data: half of the smallest positive value of that
+feature, and only if the feature contains a zero. Pass a fixed value (e.g. \code{1e-6} for relative
+abundances) when the fold changes of several datasets or strata are to be compared, so that the
+shrinkage of features containing zeros does not differ between them.}
 }
 \value{
 A data.frame including descriptive statistics of all samples and each group,

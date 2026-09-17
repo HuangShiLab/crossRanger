@@ -4,7 +4,13 @@
 \alias{desc_stats_by_group}
 \title{desc_stats_by_group_using_mean_logfc}
 \usage{
-desc_stats_by_group(x, y, clr_transform = FALSE, positive_class = NA)
+desc_stats_by_group(
+  x,
+  y,
+  clr_transform = FALSE,
+  positive_class = NA,
+  pseudocount = NULL
+)
 }
 \arguments{
 \item{x}{A data.martrix or data.frame including multiple numeric vectors.}
@@ -14,6 +20,11 @@ desc_stats_by_group(x, y, clr_transform = FALSE, positive_class = NA)
 \item{clr_transform}{A logical value indicates if clr transformation before statistical analysis of compositional microbiome data.}
 
 \item{positive_class}{A string indicating the specified class in the factor y. The positive class should be specified in the case-control design.}
+
+\item{pseudocount}{The value added to the group summaries before the log transformation of the fold
+changes. By default (\code{NULL}) it is derived per feature from the data (see \code{\link{log.mat}}).
+Pass a fixed value when the fold changes of several datasets are to be compared, so that features
+containing zeros are shrunk equally in all of them.}
 }
 \description{
 The descriptive statistics summary of all features by grouping of compositional microbiome data.
